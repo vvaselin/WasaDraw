@@ -50,6 +50,7 @@ npm run build
 ```txt
 examples/basic.html
 examples/geometry.html
+examples/shapes.html
 ```
 
 サンプルは `../dist/index.js` を import します。`src/` を変更した後は `npm run build` を実行してください。
@@ -73,6 +74,57 @@ createCanvasApp("#canvas", ({ draw, size }) => {
   maxDpr: 2,
 });
 ```
+
+## 図形描画
+
+`draw` には基本図形を描くメソッドがあります。style は `ShapeStyle` オブジェクトで指定します。単色塗りだけは `Palette.White` のような文字列短縮形も使えます。
+
+```ts
+draw.ellipse({ x: 160, y: 120 }, 80, 40, {
+  fill: "#7aa2ff",
+});
+
+draw.triangle(
+  { x: 320, y: 80 },
+  { x: 260, y: 180 },
+  { x: 380, y: 180 },
+  {
+    fill: "#ffb86c",
+  },
+);
+
+draw.polygon([
+  { x: 480, y: 80 },
+  { x: 540, y: 120 },
+  { x: 520, y: 190 },
+  { x: 440, y: 190 },
+  { x: 420, y: 120 },
+], {
+  fill: "#50fa7b",
+  stroke: "#ffffff66",
+  width: 2,
+});
+
+draw.polyline([
+  { x: 80, y: 280 },
+  { x: 160, y: 240 },
+  { x: 240, y: 300 },
+  { x: 320, y: 260 },
+], {
+  stroke: "#ffffff99",
+  width: 3,
+  dash: [8, 6],
+});
+
+draw.arc({ x: 480, y: 280 }, 60, 0, Math.PI * 1.5, {
+  stroke: "#ff79c6",
+  width: 4,
+});
+```
+
+`ShapeStyle` には `dash?: number[]` があります。`line()` / `polyline()` / `arc()` などで `ctx.setLineDash()` を使い、点線を描けます。dash はその描画呼び出し内だけに閉じます。
+
+`arc()` の角度はラジアンで指定します。現時点の `arc()` は線として描くだけで、扇形塗りは実装していません。`polygon()` は3点未満、`polyline()` は2点未満なら throw します。矢印、扇形塗り、ベジェ、スプラインは未対応です。
 
 ## Effect
 
@@ -222,9 +274,14 @@ draw.circle(pos, 32, Palette.White);
 
 - `draw.clear(color?)`
 - `draw.circle(pos, radius, style?)`
+- `draw.ellipse(pos, radiusX, radiusY, style?)`
 - `draw.rect(rect, style?)`
 - `draw.roundRect(rect, radius, style?)`
+- `draw.triangle(p1, p2, p3, style?)`
+- `draw.polygon(points, style?)`
 - `draw.line(from, to, style?)`
+- `draw.polyline(points, style?)`
+- `draw.arc(pos, radius, startAngle, endAngle, style?)`
 - `draw.text(text, pos, style?)`
 - `draw.emoji(emoji, pos, style?)`
 

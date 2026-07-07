@@ -16,6 +16,7 @@ export type ShapeStyle = {
   alpha?: number;
   lineCap?: CanvasLineCap;
   lineJoin?: CanvasLineJoin;
+  dash?: number[];
 };
 
 export type TextStyle = {
@@ -39,9 +40,30 @@ export type EmojiStyle = {
 export type DrawContext = {
   clear(color?: string): void;
   circle(pos: Vec2, radius: number, style?: ShapeStyle | string): void;
+  ellipse(
+    pos: Vec2,
+    radiusX: number,
+    radiusY: number,
+    style?: ShapeStyle | string,
+  ): void;
   rect(rect: Rect, style?: ShapeStyle | string): void;
   roundRect(rect: Rect, radius: number, style?: ShapeStyle | string): void;
+  triangle(
+    p1: Vec2,
+    p2: Vec2,
+    p3: Vec2,
+    style?: ShapeStyle | string,
+  ): void;
+  polygon(points: Vec2[], style?: ShapeStyle | string): void;
   line(from: Vec2, to: Vec2, style?: ShapeStyle | string): void;
+  polyline(points: Vec2[], style?: ShapeStyle | string): void;
+  arc(
+    pos: Vec2,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    style?: ShapeStyle | string,
+  ): void;
   text(text: string, pos: Vec2, style?: TextStyle | string): void;
   emoji(emoji: string, pos: Vec2, style?: EmojiStyle): void;
 };

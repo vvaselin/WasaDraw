@@ -51,6 +51,22 @@ export class CanvasDrawContext implements DrawContext {
     ctx.restore();
   }
 
+  ellipse(
+    pos: Vec2,
+    radiusX: number,
+    radiusY: number,
+    style?: ShapeStyle | string,
+  ): void {
+    const { ctx } = this;
+
+    ctx.save();
+    this.applyShapeStyle(style);
+    ctx.beginPath();
+    ctx.ellipse(pos.x, pos.y, radiusX, radiusY, 0, 0, Math.PI * 2);
+    this.fillAndStroke(style);
+    ctx.restore();
+  }
+
   rect(rect: Rect, style?: ShapeStyle | string): void {
     const { ctx } = this;
 
@@ -73,26 +89,95 @@ export class CanvasDrawContext implements DrawContext {
     ctx.restore();
   }
 
-  line(from: Vec2, to: Vec2, style?: ShapeStyle | string): void {
+  triangle(
+    p1: Vec2,
+    p2: Vec2,
+    p3: Vec2,
+    style?: ShapeStyle | string,
+  ): void {
     const { ctx } = this;
-    const normalized = normalizeShapeStyle(style);
 
     ctx.save();
-    ctx.globalAlpha = normalized.alpha ?? 1;
-    ctx.strokeStyle = normalized.stroke ?? normalized.fill ?? defaultFill;
-    ctx.lineWidth = normalized.width ?? 1;
+    this.applyShapeStyle(style);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.lineTo(p3.x, p3.y);
+    ctx.closePath();
+    this.fillAndStroke(style);
+    ctx.restore();
+  }
 
-    if (normalized.lineCap !== undefined) {
-      ctx.lineCap = normalized.lineCap;
+  polygon(points: Vec2[], style?: ShapeStyle | string): void {
+    if (points.length < 3) {
+      throw new Error("draw.polygon: points must contain at least 3 points.");
     }
 
-    if (normalized.lineJoin !== undefined) {
-      ctx.lineJoin = normalized.lineJoin;
+    const { ctx } = this;
+    const first = points[0]!;
+
+    ctx.save();
+    this.applyShapeStyle(style);
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y);
+
+    for (let i = 1; i < points.length; i += 1) {
+      const point = points[i]!;
+      ctx.lineTo(point.x, point.y);
     }
 
+    ctx.closePath();
+    this.fillAndStroke(style);
+    ctx.restore();
+  }
+
+  line(from: Vec2, to: Vec2, style?: ShapeStyle | string): void {
+    const { ctx } = this;
+
+    ctx.save();
+    this.applyLineStyle(style);
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  polyline(points: Vec2[], style?: ShapeStyle | string): void {
+    if (points.length < 2) {
+      throw new Error("draw.polyline: points must contain at least 2 points.");
+    }
+
+    const { ctx } = this;
+    const first = points[0]!;
+
+    ctx.save();
+    this.applyLineStyle(style);
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y);
+
+    for (let i = 1; i < points.length; i += 1) {
+      const point = points[i]!;
+      ctx.lineTo(point.x, point.y);
+    }
+
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  arc(
+    pos: Vec2,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    style?: ShapeStyle | string,
+  ): void {
+    const { ctx } = this;
+
+    ctx.save();
+    this.applyLineStyle(style);
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, radius, startAngle, endAngle);
     ctx.stroke();
     ctx.restore();
   }
@@ -154,6 +239,31 @@ export class CanvasDrawContext implements DrawContext {
 
     if (normalized.lineJoin !== undefined) {
       ctx.lineJoin = normalized.lineJoin;
+    }
+
+    if (normalized.dash !== undefined) {
+      ctx.setLineDash(normalized.dash);
+    }
+  }
+
+  private applyLineStyle(style?: ShapeStyle | string): void {
+    const { ctx } = this;
+    const normalized = normalizeShapeStyle(style);
+
+    ctx.globalAlpha = normalized.alpha ?? 1;
+    ctx.strokeStyle = normalized.stroke ?? normalized.fill ?? defaultFill;
+    ctx.lineWidth = normalized.width ?? 1;
+
+    if (normalized.lineCap !== undefined) {
+      ctx.lineCap = normalized.lineCap;
+    }
+
+    if (normalized.lineJoin !== undefined) {
+      ctx.lineJoin = normalized.lineJoin;
+    }
+
+    if (normalized.dash !== undefined) {
+      ctx.setLineDash(normalized.dash);
     }
   }
 
