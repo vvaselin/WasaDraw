@@ -1,59 +1,60 @@
 # CanvasKit
 
-CanvasKit is a small TypeScript Canvas 2D drawing library inspired by OpenSiv3D's immediate drawing style.
+CanvasKit は、OpenSiv3D の即時描画スタイルに影響を受けた、小さな TypeScript 製 Canvas 2D 描画ライブラリです。
 
-It is intended for drawing simple shapes, emoji, and lightweight animation effects on websites with a compact API. It is not a game engine and does not try to be compatible with all Siv3D features.
+Webサイト上で、図形、絵文字、軽いアニメーション演出をコンパクトなAPIで書くことを目的にしています。本格的なゲームエンジンではなく、Siv3D完全互換も目指していません。
 
-## Target
+## 対象
 
-- Website decorations and visual sketches
-- Diagrams, simple animated accents, and emoji effects
-- Framework-independent Canvas 2D drawing
-- Code that feels close to immediate-mode drawing
+- Webサイトの装飾やビジュアルスケッチ
+- 図解、軽いアニメーション、絵文字演出
+- フレームワーク非依存の Canvas 2D 描画
+- 即時描画に近い感覚で書きたいコード
 
-## Non-Goals
+## 対象外
 
-- Full game engine features
-- PixiJS-style scene management
-- Vue / React / Nuxt / Astro component wrappers
-- WebGL rendering
-- Physics simulation
-- Image editing tools
-- Replacing normal UI controls with Canvas UI
+- 本格的なゲームエンジン機能
+- PixiJS 的なシーン管理
+- Vue / React / Nuxt / Astro 用コンポーネントラッパー
+- WebGL 描画
+- 物理演算
+- 画像編集ツール
+- 通常のUI部品を Canvas UI で置き換えること
 
-## Basic Policy
+## 基本方針
 
-- TypeScript first
-- ESM output
-- Canvas 2D only
-- No runtime dependencies
-- Framework independent core
-- Immediate drawing style
-- Small API surface before abstraction
-- No silent fallback behavior
+- TypeScript を使う
+- ESM として出力する
+- Canvas 2D のみを使う
+- runtime dependency を増やさない
+- コアはフレームワーク非依存にする
+- 即時描画スタイルを基本にする
+- 抽象化より小さく動くAPIを優先する
+- 暗黙のフォールバックを入れない
 
-CanvasKit intentionally throws when an important operation fails. For example, `createCanvasApp()` throws if a 2D context cannot be created. Unsupported drawing features are not replaced with different rendering methods behind the scenes.
+CanvasKit は、重要な処理に失敗した場合に明確に例外を投げます。たとえば `createCanvasApp()` は 2D context を取得できなければ throw します。未対応の描画機能を、別の描画方法へ勝手に置き換えることはしません。
 
-`createCanvasApp()` accepts either an `HTMLCanvasElement` or a CSS selector string. Passing a selector is a convenience API for canvas lookup, not a fallback. If the selector does not match an element, or if it matches a non-canvas element, CanvasKit throws.
+`createCanvasApp()` の第1引数には `HTMLCanvasElement` または CSS selector 文字列を渡せます。selector 指定は canvas 取得を楽にするための便利APIであり、フォールバックではありません。selector が何にも一致しない場合、または canvas 以外の要素に一致した場合は throw します。
 
-## Local Usage
+## ローカル利用
 
-This project is currently meant to be used locally, not installed from npm.
+このプロジェクトは、現時点では npm からインストールする前提ではなく、ローカルで使う前提です。
 
 ```sh
 npm install
 npm run build
 ```
 
-Then open the example through a local HTTP server:
+サンプルはローカルHTTPサーバー経由で開いてください。
 
 ```txt
 examples/basic.html
+examples/geometry.html
 ```
 
-The example imports from `../dist/index.js`, so run `npm run build` after changing files in `src/`.
+サンプルは `../dist/index.js` を import します。`src/` を変更した後は `npm run build` を実行してください。
 
-## Minimal Example
+## 最小サンプル
 
 ```ts
 import {
@@ -73,11 +74,11 @@ createCanvasApp("#canvas", ({ draw, size }) => {
 });
 ```
 
-## Effects
+## Effect
 
-`createEffectManager()` manages short-lived drawing effects such as click ripples, particles, emoji bursts, and hover accents.
+`createEffectManager()` は、クリック時の波紋、粒子、絵文字の発生、ホバー時の一時演出など、短命な描画エフェクトを管理します。
 
-An effect function receives elapsed time `t` and the current frame context. Return `true` to keep the effect alive, or `false` to remove it. Exceptions thrown inside an effect are not caught or hidden. Async effects, Promise handling, and automatic fallback behavior are not supported.
+effect 関数は経過時間 `t` と現在の frame context を受け取ります。`true` を返すと継続し、`false` を返すと削除されます。effect 内で発生した例外は catch せず、そのまま外へ伝わります。非同期 effect、Promise、自動フォールバックは扱いません。
 
 ```ts
 import {
@@ -114,9 +115,39 @@ createCanvasApp("#canvas", (context) => {
 });
 ```
 
+## Geometry
+
+`geometry.ts` は、軽量な図形データ型と helper 関数を提供します。図形はクラスではなく plain object なので、値として保持し、描画や当たり判定へ渡しやすい形です。
+
+- `vec2(x, y)` は点またはベクトルを作ります。
+- `rect(x, y, w, h)` は軸に沿った矩形を作ります。
+- `circle(center, r)` は円を作ります。
+- `line(from, to)` は線分データを作ります。
+- `contains(shape, point)` は点が矩形または円の内側にあるか判定します。境界上も含みます。
+- `intersects(a, b)` は rect/rect、circle/circle、rect/circle の交差を判定します。接しているだけの場合も交差として扱います。
+- `moved(shape, offset)` は元の図形を変更せず、移動後の新しい図形を返します。
+
+回転Rect、Polygon、Line交差判定はまだ対応していません。未対応のgeometry処理を近似的な別処理へ置き換えるフォールバックも入れていません。
+
+```ts
+const button = rect(40, 40, 220, 72);
+const hovered = contains(button, input.mouse.position);
+
+draw.roundRect(button, 16, {
+  fill: hovered ? "#263246" : "#171d2a",
+});
+
+draw.text("Button", centerOf(button), {
+  size: 20,
+  fill: Palette.White,
+  align: "center",
+  baseline: "middle",
+});
+```
+
 ## Style Objects
 
-Shape styles are object-based so calls stay readable as the options grow:
+図形のstyleは、基本的にオブジェクトで指定します。オプションが増えても意味が読みやすいためです。
 
 ```ts
 draw.circle(pos, 32, {
@@ -129,40 +160,53 @@ draw.circle(pos, 32, {
 });
 ```
 
-Only solid fill has a short form:
+単色塗りだけは短縮形を使えます。
 
 ```ts
 draw.circle(pos, 32, Palette.White);
 ```
 
-CanvasKit does not provide unclear variable-length argument forms such as `fill, stroke, width` in separate positional parameters.
+`fill, stroke, width` を位置引数で並べるような、意味が分かりづらい可変長引数APIは用意しません。
 
-## Emoji Rendering
+## 絵文字描画
 
-`draw.emoji()` currently uses Canvas text rendering with `fillText()`.
+`draw.emoji()` は、現時点では Canvas の text 描画、つまり `fillText()` で実装しています。
 
-Emoji appearance depends on the browser, OS, and installed emoji fonts. CanvasKit does not load emoji image assets, does not rasterize emoji by itself, and does not draw replacement shapes when emoji fonts are unavailable.
+絵文字の見た目は、ブラウザ、OS、インストールされている絵文字フォントに依存します。CanvasKit は絵文字画像アセットを読み込まず、独自に絵文字をラスタライズせず、絵文字フォントがない場合に代替図形を描くこともしません。
 
-## Fallback Policy
+## フォールバック方針
 
-Fallbacks are intentionally not added at this stage.
+この段階では、フォールバックを意図的に入れていません。
 
-- No fallback when `CanvasRenderingContext2D` cannot be created
-- No canvas creation fallback when a selector does not match
-- No fallback from a matched non-canvas element to another element
-- No automatic replacement for unsupported drawing features
-- No `OffscreenCanvas` to normal Canvas fallback
-- No emoji image asset fallback
-- No transparent placeholder for failed image loading
-- No complex browser compatibility layer
+- `CanvasRenderingContext2D` を取得できない場合のフォールバックはしない
+- selector が一致しない場合に canvas を自動生成しない
+- selector が canvas 以外に一致した場合に別要素へフォールバックしない
+- 未対応の描画機能を別の描画方法で代替しない
+- `OffscreenCanvas` から通常 Canvas への自動フォールバックはしない
+- 絵文字画像アセット方式へのフォールバックはしない
+- 画像読み込み失敗時の透明プレースホルダーは作らない
+- 複雑なブラウザ互換レイヤーは入れない
 
-If an alternative path becomes necessary later, it should be added deliberately and documented. Temporary fallback behavior should remain a TODO until the API design is clear.
+代替手段が必要になった場合は、API設計を決めたうえで明示的に追加します。暫定的なフォールバックは TODO に留めます。
 
-## Current API
+## 現在のAPI
 
 - `createCanvasApp(canvasOrSelector, frame, options?)`
 - `createEffectManager()`
 - `Palette`
+- `vec2()`
+- `rect()`
+- `circle()`
+- `line()`
+- `add()`
+- `sub()`
+- `mul()`
+- `distance()`
+- `length()`
+- `centerOf()`
+- `moved()`
+- `contains()`
+- `intersects()`
 - `deg()`
 - `rad()`
 - `clamp()`
@@ -174,7 +218,7 @@ If an alternative path becomes necessary later, it should be added deliberately 
 - `easeOutCubic()`
 - `easeInOutCubic()`
 
-Drawing methods are available from the `draw` object passed to the frame callback:
+描画メソッドは、frame callback に渡される `draw` オブジェクトから使います。
 
 - `draw.clear(color?)`
 - `draw.circle(pos, radius, style?)`
@@ -184,7 +228,7 @@ Drawing methods are available from the `draw` object passed to the frame callbac
 - `draw.text(text, pos, style?)`
 - `draw.emoji(emoji, pos, style?)`
 
-## Roadmap
+## ロードマップ
 
 ### v0.1
 

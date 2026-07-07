@@ -1,26 +1,12 @@
 import type { InputState } from "./mouse.js";
+import type { Rect, Vec2 } from "./geometry.js";
 
-export type Vec2 = {
-  x: number;
-  y: number;
-};
+export type { Circle, Line, Rect, Vec2 } from "./geometry.js";
 
 export type Size2D = {
   width: number;
   height: number;
   center: Vec2;
-};
-
-export type Rect = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-export type Circle = {
-  center: Vec2;
-  r: number;
 };
 
 export type ShapeStyle = {
