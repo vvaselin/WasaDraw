@@ -2,6 +2,7 @@ import type {
   DrawContext,
   EmojiStyle,
   Rect,
+  Shape,
   ShapeStyle,
   Size2D,
   TextStyle,
@@ -38,6 +39,26 @@ export class CanvasDrawContext implements DrawContext {
     }
 
     ctx.restore();
+  }
+
+  shape(shape: Shape, style?: ShapeStyle | string): void {
+    if (shape === null || typeof shape !== "object" || !("kind" in shape)) {
+      throw new Error("draw.shape: unsupported shape kind.");
+    }
+
+    switch (shape.kind) {
+      case "circle":
+        this.circle(shape.center, shape.r, style);
+        return;
+      case "rect":
+        this.rect(shape, style);
+        return;
+      case "line":
+        this.line(shape.from, shape.to, style);
+        return;
+      default:
+        throw new Error("draw.shape: unsupported shape kind.");
+    }
   }
 
   circle(pos: Vec2, radius: number, style?: ShapeStyle | string): void {

@@ -1,7 +1,7 @@
 import type { InputState } from "./mouse.js";
-import type { Rect, Vec2 } from "./geometry.js";
+import type { Rect, Shape, Vec2 } from "./geometry.js";
 
-export type { Circle, Line, Rect, Vec2 } from "./geometry.js";
+export type { Circle, Line, Rect, Shape, Vec2 } from "./geometry.js";
 
 export type Size2D = {
   width: number;
@@ -39,6 +39,7 @@ export type EmojiStyle = {
 
 export type DrawContext = {
   clear(color?: string): void;
+  shape(shape: Shape, style?: ShapeStyle | string): void;
   circle(pos: Vec2, radius: number, style?: ShapeStyle | string): void;
   ellipse(
     pos: Vec2,

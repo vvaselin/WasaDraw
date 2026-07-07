@@ -55,6 +55,24 @@ examples/shapes.html
 
 サンプルは `../dist/index.js` を import します。`src/` を変更した後は `npm run build` を実行してください。
 
+## Examples
+
+- `examples/basic.html`
+  - `createCanvasApp`
+  - basic shapes
+  - emoji
+  - mouse input
+  - `EffectManager` click ripple
+
+- `examples/shapes.html`
+  - geometry values
+  - circle / rect / line helpers
+  - `draw.shape()`
+  - `moved()`
+  - `centerOf()`
+  - ellipse / triangle / polygon / polyline / arc
+  - dashed lines
+
 ## 最小サンプル
 
 ```ts
@@ -167,23 +185,25 @@ createCanvasApp("#canvas", (context) => {
 });
 ```
 
-## Geometry
+## Geometry Values
 
 `geometry.ts` は、軽量な図形データ型と helper 関数を提供します。図形はクラスではなく plain object なので、値として保持し、描画や当たり判定へ渡しやすい形です。
 
 - `vec2(x, y)` は点またはベクトルを作ります。
-- `rect(x, y, w, h)` は軸に沿った矩形を作ります。
-- `circle(center, r)` は円を作ります。
-- `line(from, to)` は線分データを作ります。
+- `rect(x, y, w, h)` は `kind: "rect"` 付きの矩形を作ります。
+- `circle(center, r)` は `kind: "circle"` 付きの円を作ります。
+- `line(from, to)` は `kind: "line"` 付きの線分データを作ります。
 - `contains(shape, point)` は点が矩形または円の内側にあるか判定します。境界上も含みます。
 - `intersects(a, b)` は rect/rect、circle/circle、rect/circle の交差を判定します。接しているだけの場合も交差として扱います。
 - `moved(shape, offset)` は元の図形を変更せず、移動後の新しい図形を返します。
 
-`circle()` / `rect()` / `line()` は geometry value を作る関数です。一方、`draw.circle()` / `draw.rect()` / `draw.line()` は実際に Canvas へ描画する関数です。同じ図形を何度も描く、移動した図形を作る、`contains()` / `intersects()` の判定にも使う、といった場合は geometry helper で図形を変数として保持すると読みやすくなります。
+`circle()` / `rect()` / `line()` は描画ではなく、`kind` 付きの geometry value を作る関数です。一方、`draw.circle()` / `draw.rect()` / `draw.line()` は実際に Canvas へ描画する関数です。
+
+`draw.shape(shape, style)` を使うと、`Circle` / `Rect` / `Line` を分解せずにそのまま描画できます。現時点で `draw.shape()` が対応するのは `Circle` / `Rect` / `Line` のみです。`draw.roundRect()` のように追加引数が必要な描画は、専用メソッドを使います。
+
+CanvasKit は `shape.draw()` 形式や図形クラス化ではなく、plain object + draw call 形式を採用しています。`draw.shape()` はその方針のまま、geometry value を描くときの冗長さを減らすためのAPIです。同じ図形を何度も使う、`moved()` で別図形を作る、`contains()` / `intersects()` の判定にも使う、といった場合は geometry helper で図形を変数として保持すると読みやすくなります。
 
 回転Rect、Polygon、Line交差判定はまだ対応していません。未対応のgeometry処理を近似的な別処理へ置き換えるフォールバックも入れていません。
-
-図形データは変数として保持できますが、描画は `shape.draw()` ではなく即時描画APIで行います。たとえば円は `draw.circle(shape.center, shape.r, style)` のように描きます。これは、plain object の図形データと `draw` による描画命令を意図的に分けているためです。`shape.draw()` 形式は今後検討できますが、現時点では実装していません。
 
 ```ts
 const c = circle(vec2(120, 80), 32);
@@ -194,6 +214,20 @@ draw.circle(c.center, c.r, {
 });
 
 draw.circle(shifted.center, shifted.r, {
+  stroke: Palette.White,
+  width: 2,
+});
+```
+
+```ts
+const c = circle(vec2(120, 80), 32);
+const shifted = moved(c, vec2(80, 0));
+
+draw.shape(c, {
+  fill: Palette.Skyblue,
+});
+
+draw.shape(shifted, {
   stroke: Palette.White,
   width: 2,
 });
@@ -288,9 +322,20 @@ draw.circle(pos, 32, Palette.White);
 - `easeOutCubic()`
 - `easeInOutCubic()`
 
+style object では次の `ShapeStyle` properties を使えます。
+
+- `ShapeStyle.fill`
+- `ShapeStyle.stroke`
+- `ShapeStyle.width`
+- `ShapeStyle.alpha`
+- `ShapeStyle.lineCap`
+- `ShapeStyle.lineJoin`
+- `ShapeStyle.dash`
+
 描画メソッドは、frame callback に渡される `draw` オブジェクトから使います。
 
 - `draw.clear(color?)`
+- `draw.shape(shape, style?)`
 - `draw.circle(pos, radius, style?)`
 - `draw.ellipse(pos, radiusX, radiusY, style?)`
 - `draw.rect(rect, style?)`
@@ -305,24 +350,20 @@ draw.circle(pos, 32, Palette.White);
 
 ## ロードマップ
 
-### v0.1
+### v0.1 completed
 
 - createCanvasApp
-- draw.clear
-- draw.circle
-- draw.rect
-- draw.roundRect
-- draw.line
-- draw.text
-- draw.emoji
+- draw.clear / circle / rect / roundRect / line / text / emoji
 - Palette
 - math helpers
 - mouse input
 - EffectManager
 
-### v0.2
+### v0.2 completed or in progress
 
-- Vec2 / Rect / Circle helper
+- Vec2 / Rect / Circle / Line helper
+- kind付きShape設計
+- draw.shape()
 - contains
 - intersects
 - ellipse
@@ -330,18 +371,21 @@ draw.circle(pos, 32, Palette.White);
 - polygon
 - polyline
 - arc
+- dashed line via ShapeStyle.dash
 
-### v0.3
+### v0.3 candidate
 
 - draw.image
-- transform helper
 - withTransform
 - pauseWhenHidden
 - pauseWhenOffscreen
 - respectReducedMotion
+- Palette拡張
+- rgb() / rgba() / hsl() / hsla()
 
-### v0.4
+### v0.4 candidate
 
+- Color class
 - RenderState
 - withState
 - RenderTarget

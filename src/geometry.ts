@@ -4,6 +4,7 @@ export type Vec2 = {
 };
 
 export type Rect = {
+  kind: "rect";
   x: number;
   y: number;
   w: number;
@@ -11,29 +12,33 @@ export type Rect = {
 };
 
 export type Circle = {
+  kind: "circle";
   center: Vec2;
   r: number;
 };
 
 export type Line = {
+  kind: "line";
   from: Vec2;
   to: Vec2;
 };
+
+export type Shape = Circle | Rect | Line;
 
 export function vec2(x: number, y: number): Vec2 {
   return { x, y };
 }
 
 export function rect(x: number, y: number, w: number, h: number): Rect {
-  return { x, y, w, h };
+  return { kind: "rect", x, y, w, h };
 }
 
 export function circle(center: Vec2, r: number): Circle {
-  return { center, r };
+  return { kind: "circle", center, r };
 }
 
 export function line(from: Vec2, to: Vec2): Line {
-  return { from, to };
+  return { kind: "line", from, to };
 }
 
 export function add(a: Vec2, b: Vec2): Vec2 {
@@ -75,10 +80,7 @@ export function centerOf(rect: Rect): Vec2 {
 export function moved(shape: Rect, offset: Vec2): Rect;
 export function moved(shape: Circle, offset: Vec2): Circle;
 export function moved(shape: Line, offset: Vec2): Line;
-export function moved(
-  shape: Rect | Circle | Line,
-  offset: Vec2,
-): Rect | Circle | Line {
+export function moved(shape: Shape, offset: Vec2): Shape {
   if (isRect(shape)) {
     return {
       ...shape,
@@ -95,6 +97,7 @@ export function moved(
   }
 
   return {
+    kind: "line",
     from: add(shape.from, offset),
     to: add(shape.to, offset),
   };
@@ -157,10 +160,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function isRect(shape: Rect | Circle | Line): shape is Rect {
-  return "x" in shape;
+function isRect(shape: Shape): shape is Rect {
+  return shape.kind === "rect";
 }
 
-function isCircle(shape: Rect | Circle | Line): shape is Circle {
-  return "center" in shape;
+function isCircle(shape: Shape): shape is Circle {
+  return shape.kind === "circle";
 }
