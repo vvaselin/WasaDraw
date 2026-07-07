@@ -136,13 +136,13 @@ examples/showcase.html
   - 開始時に 1 frame だけ描画
 
 - `examples/showcase.html`
-  - 主要APIをまとめた総合デモ
+  - v0.4 までの主要APIをまとめた総合デモ
   - basic shapes + geometry values + `draw.shape()`
-  - color helpers
-  - emoji
-  - image
-  - `EffectManager`
-  - `withTransform`
+  - `Color` / color helpers
+  - `withTransform` / `withState`
+  - `RenderTarget` / canvas source image
+  - `Camera2D`
+  - `EffectManager` click ripple
   - `pauseWhenHidden` + `pauseWhenOffscreen` + `respectReducedMotion`
 
 ## 最小サンプル
@@ -368,7 +368,7 @@ draw.circle(pos, 32, Palette.White);
 
 `draw.text(text, pos, style?)` は Canvas 2D の `fillText()` で文字列を描画します。`text` に `\n` が含まれる場合は複数行として描画します。`\r\n` と `\r` も改行として扱いますが、HTML として解釈しないため `<br>` は改行になりません。自動折り返しは未対応です。
 
-`TextStyle.lineHeight` で行間を指定できます。既定値は `1.2` で、実際の行間は `size * lineHeight` です。`lineHeight` に有限の正の数以外を渡すと `RangeError` を投げます。
+`TextStyle.lineHeight` で行間を指定できます。既定値は `1.2` で、実際の行間は `size * lineHeight` です。`lineHeight` は有限の正の数のみ許可され、それ以外を渡すと `RangeError` を投げます。
 
 ```ts
 draw.text("CanvasKit\nmultiline text", vec2(80, 80), {
@@ -450,9 +450,11 @@ draw.withTransform({
 
 `createCamera2D()` は world座標と screen座標を変換するための最小APIです。`camera.center` は world座標における画面中心、`camera.zoom` は倍率です。`zoom = 1` のとき world座標1単位が screen座標1px になり、`zoom > 1` で拡大、`zoom < 1` で縮小します。
 
+`worldToScreen(point, size)` は world座標を Canvas 左上原点の screen座標へ変換し、`screenToWorld(point, size)` は screen座標を world座標へ戻します。`moveBy(offset)` は camera center を world座標単位で破壊的に移動し、`movedBy(offset)` は元の camera を変えずに移動後の新しい camera を返します。`setCenter(center)` / `setZoom(zoom)` は値を更新します。`zoomAt(screenPoint, zoomFactor, size)` は、指定した screen座標の下にある world座標が zoom 後も同じ screen位置に残るように `center` を補正します。
+
 `draw.withCamera(camera, size, callback)` の中では、`draw.circle()` / `draw.shape()` / `draw.text()` などを world座標で描けます。callback が例外を投げても Canvas の transform は restore されます。Camera2D は回転せず、Scene管理でもありません。入力操作も Camera2D 本体には持たせません。
 
-mouse座標は自動変換しません。world mouse座標が必要な場合は `camera.screenToWorld(input.mouse.position, size)` を使います。`examples/camera2d.html` では example 側で drag pan / wheel zoom を実装しています。
+mouse座標は自動変換しません。world mouse座標が必要な場合は `camera.screenToWorld(input.mouse.position, size)` を使います。回転camera、Camera controller、Scene管理は未対応です。`examples/camera2d.html` では example 側で drag pan / wheel zoom を実装しています。
 
 ```ts
 const camera = createCamera2D({
@@ -504,9 +506,9 @@ draw.withState({
 
 `target.render(callback)` の callback には `{ draw, size, canvas, context }` が渡されます。`draw` は `createCanvasApp()` と同じ API で、CSS pixel 座標のまま描けます。`render()` は自動 clear しません。必要なら `target.clear(color?)`、または callback 内の `draw.clear()` を使います。
 
-メイン Canvas へは `draw.image(target.canvas, pos, { width: target.width, height: target.height })` で描きます。`width` / `height` を渡さないと、内部 Canvas の pixel size、つまり dpr 倍の大きさで描かれるので注意してください。
+`target.canvas` は内部 Canvas です。メイン Canvas へは `draw.image(target.canvas, pos, { width: target.width, height: target.height })` で描きます。`width` / `height` を渡さないと、内部 Canvas の pixel size、つまり dpr 倍の大きさで描かれるので注意してください。
 
-`resize(w, h)` で再配置できます。`destroy()` 後の `render` / `clear` / `resize` は throw します。OffscreenCanvas は使いません。blur / post effect / multi pass は未対応です。`document` がない環境への fallback もしません。
+`target.resize(w, h)` で再配置できます。`target.destroy()` 後の `render` / `clear` / `resize` は throw します。OffscreenCanvas は使いません。blur / post effect / multi pass は未対応です。`document` がない環境への fallback もしません。
 
 ```ts
 const stamp = createRenderTarget(160, 160);
@@ -622,6 +624,23 @@ style object では次の properties を使えます。
 - `TextStyle.align`
 - `TextStyle.baseline`
 - `TextStyle.alpha`
+- `ImageStyle.width`
+- `ImageStyle.height`
+- `ImageStyle.scale`
+- `ImageStyle.rotation`
+- `ImageStyle.mirrored`
+- `ImageStyle.alpha`
+
+`draw.withState()` では次の `RenderState2D` properties を使えます。
+
+- `RenderState2D.alpha`
+- `RenderState2D.blend`
+- `RenderState2D.shadowBlur`
+- `RenderState2D.shadowColor`
+- `RenderState2D.shadowOffset`
+- `RenderState2D.filter`
+- `RenderState2D.lineCap`
+- `RenderState2D.lineJoin`
 
 描画メソッドは、frame callback に渡される `draw` オブジェクトから使います。
 
@@ -654,7 +673,7 @@ style object では次の properties を使えます。
 - mouse input
 - EffectManager
 
-### v0.2 completed or in progress
+### v0.2 completed
 
 - Vec2 / Rect / Circle / Line helper
 - kind付きShape設計
@@ -668,7 +687,7 @@ style object では次の properties を使えます。
 - arc
 - dashed line via ShapeStyle.dash
 
-### v0.3 completed or in progress
+### v0.3 completed
 
 - Palette拡張
 - rgb() / rgba() / hsl() / hsla()
@@ -678,9 +697,21 @@ style object では次の properties を使えます。
 - respectReducedMotion
 - draw.image
 
-### v0.4 completed or in progress
+### v0.4 completed
 
-- draw.withState() (RenderState2D)
-- RenderTarget (createRenderTarget)
+- draw.withState() / RenderState2D
+- RenderTarget
 - Camera2D
 - Color class
+- draw.text() multiline support
+
+### v0.5 candidate
+
+- gradients
+- CanvasPattern
+- arrow helper
+- bezier / spline
+- simple text box / maxWidth
+- Camera2D controller helper
+- npm package setup
+- framework adapters
