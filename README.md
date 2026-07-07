@@ -53,6 +53,7 @@ examples/geometry.html
 examples/shapes.html
 examples/colors.html
 examples/transform.html
+examples/camera2d.html
 examples/state.html
 examples/render-target.html
 examples/images.html
@@ -96,6 +97,12 @@ examples/showcase.html
   - `draw.withTransform()`
   - rotate / scale animation
   - 入れ子 transform
+
+- `examples/camera2d.html`
+  - `createCamera2D()`
+  - `draw.withCamera()`
+  - world grid / screen-to-world mouse
+  - drag pan / wheel zoom
 
 - `examples/state.html`
   - `draw.withState()`
@@ -389,7 +396,7 @@ draw.circle(pos, 32, {
 
 `draw.withTransform(transform, callback)` は、callback の間だけ描画座標を変換します。transform は `{ translate?, rotate?, scale? }` で、適用順は translate → rotate → scale です。rotate はラジアン指定です。角度で書きたい場合は `deg()` を使えます。scale は `number` なら均等拡大、`Vec2` なら x / y 別々の拡大です。
 
-内部では `ctx.save()` / `ctx.restore()` を使います。callback が例外を投げても restore は実行されます。変換されるのは描画だけです。mouse input / `contains()` / `intersects()` の座標は変換しません。`NaN` / `Infinity` のような非有限値は `RangeError` です。origin、Camera2D、matrix API、mouse 座標変換はまだありません。
+内部では `ctx.save()` / `ctx.restore()` を使います。callback が例外を投げても restore は実行されます。変換されるのは描画だけです。mouse input / `contains()` / `intersects()` の座標は変換しません。`NaN` / `Infinity` のような非有限値は `RangeError` です。origin、matrix API、mouse 座標の自動変換はまだありません。
 
 ```ts
 draw.withTransform({
@@ -404,6 +411,39 @@ draw.withTransform({
   draw.emoji("🛰️", vec2(90, 0), {
     size: 48,
   });
+});
+```
+
+## Camera2D
+
+`createCamera2D()` は world座標と screen座標を変換するための最小APIです。`camera.center` は world座標における画面中心、`camera.zoom` は倍率です。`zoom = 1` のとき world座標1単位が screen座標1px になり、`zoom > 1` で拡大、`zoom < 1` で縮小します。
+
+`draw.withCamera(camera, size, callback)` の中では、`draw.circle()` / `draw.shape()` / `draw.text()` などを world座標で描けます。callback が例外を投げても Canvas の transform は restore されます。Camera2D は回転せず、Scene管理でもありません。入力操作も Camera2D 本体には持たせません。
+
+mouse座標は自動変換しません。world mouse座標が必要な場合は `camera.screenToWorld(input.mouse.position, size)` を使います。`examples/camera2d.html` では example 側で drag pan / wheel zoom を実装しています。
+
+```ts
+const camera = createCamera2D({
+  center: vec2(0, 0),
+  zoom: 1,
+});
+
+createCanvasApp("#canvas", ({ draw, size, input }) => {
+  const worldMouse = camera.screenToWorld(input.mouse.position, size);
+
+  draw.clear("#0f1117");
+
+  draw.withCamera(camera, size, () => {
+    draw.shape(circle(vec2(0, 0), 40), {
+      fill: Palette.Skyblue,
+    });
+
+    draw.shape(circle(worldMouse, 8), {
+      fill: Palette.Orange,
+    });
+  });
+}, {
+  autoStart: true,
 });
 ```
 
@@ -495,6 +535,7 @@ draw.image(logo, vec2(400, 150), { scale: 0.5, rotation: deg(15), alpha: 0.8 });
 - `createCanvasApp(canvasOrSelector, frame, options?)`
 - `createEffectManager()`
 - `createRenderTarget()`
+- `createCamera2D()`
 - `Palette`
 - `rgb()`
 - `rgba()`
@@ -546,6 +587,7 @@ style object では次の properties を使えます。
 
 - `draw.clear(color?)`
 - `draw.withTransform(transform, callback)`
+- `draw.withCamera(camera, viewportSize, callback)`
 - `draw.withState(state, callback)`
 - `draw.shape(shape, style?)`
 - `draw.circle(pos, radius, style?)`
@@ -600,8 +642,8 @@ style object では次の properties を使えます。
 
 - draw.withState() (RenderState2D)
 - RenderTarget (createRenderTarget)
+- Camera2D
 
 ### v0.4 candidate
 
 - Color class
-- Camera2D

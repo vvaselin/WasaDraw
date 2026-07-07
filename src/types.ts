@@ -1,5 +1,6 @@
 import type { InputState } from "./mouse.js";
 import type { Rect, Shape, Vec2 } from "./geometry.js";
+import type { Camera2D } from "./camera2d.js";
 
 export type { Circle, Line, Rect, Shape, Vec2 } from "./geometry.js";
 
@@ -67,6 +68,7 @@ export type EmojiStyle = {
 export type DrawContext = {
   clear(color?: string): void;
   withTransform(transform: Transform2D, callback: () => void): void;
+  withCamera(camera: Camera2D, viewportSize: Size2D, callback: () => void): void;
   withState(state: RenderState2D, callback: () => void): void;
   shape(shape: Shape, style?: ShapeStyle | string): void;
   circle(pos: Vec2, radius: number, style?: ShapeStyle | string): void;

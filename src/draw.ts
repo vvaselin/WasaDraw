@@ -11,6 +11,7 @@ import type {
   Transform2D,
   Vec2,
 } from "./types.js";
+import type { Camera2D } from "./camera2d.js";
 
 const defaultFill = "#ffffff";
 const defaultTextFont = "sans-serif";
@@ -85,6 +86,45 @@ export class CanvasDrawContext implements DrawContext {
         ctx.scale(scaleVec.x, scaleVec.y);
       }
 
+      callback();
+    } finally {
+      ctx.restore();
+    }
+  }
+
+  withCamera(camera: Camera2D, viewportSize: Size2D, callback: () => void): void {
+    const { ctx } = this;
+
+    if (
+      !Number.isFinite(camera.center.x) ||
+      !Number.isFinite(camera.center.y)
+    ) {
+      throw new RangeError(
+        "draw.withCamera: camera.center must contain finite numbers.",
+      );
+    }
+
+    if (!Number.isFinite(camera.zoom) || camera.zoom <= 0) {
+      throw new RangeError(
+        "draw.withCamera: camera.zoom must be a finite number greater than 0.",
+      );
+    }
+
+    assertPositiveFiniteDrawCameraValue(
+      "viewportSize.width",
+      viewportSize.width,
+    );
+    assertPositiveFiniteDrawCameraValue(
+      "viewportSize.height",
+      viewportSize.height,
+    );
+
+    ctx.save();
+
+    try {
+      ctx.translate(viewportSize.width / 2, viewportSize.height / 2);
+      ctx.scale(camera.zoom, camera.zoom);
+      ctx.translate(-camera.center.x, -camera.center.y);
       callback();
     } finally {
       ctx.restore();
@@ -558,6 +598,14 @@ function assertFiniteTransform(name: string, value: number): void {
   if (!Number.isFinite(value)) {
     throw new RangeError(
       `draw.withTransform: ${name} must be a finite number.`,
+    );
+  }
+}
+
+function assertPositiveFiniteDrawCameraValue(name: string, value: number): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new RangeError(
+      `draw.withCamera: ${name} must be a finite number greater than 0.`,
     );
   }
 }

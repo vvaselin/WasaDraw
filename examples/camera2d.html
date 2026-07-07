@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>canvaskit camera2d example</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        background: #0f1117;
+        color: #ffffff99;
+        font-family: system-ui, sans-serif;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+        cursor: grab;
+      }
+
+      canvas:active {
+        cursor: grabbing;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <script type="module">
+      import {
+        createCanvasApp,
+        createCamera2D,
+        Palette,
+        rgba,
+        vec2,
+        rect,
+        circle,
+      } from "../dist/index.js";
+
+      const canvas = document.querySelector("#canvas");
+      const font = "system-ui, sans-serif";
+      const camera = createCamera2D({
+        center: vec2(0, 0),
+        zoom: 1,
+      });
+
+      let latestSize = null;
+
+      canvas.addEventListener("wheel", (event) => {
+        event.preventDefault();
+
+        if (latestSize === null) {
+          return;
+        }
+
+        const bounds = canvas.getBoundingClientRect();
+        const mouse = vec2(event.clientX - bounds.left, event.clientY - bounds.top);
+        const zoomFactor = event.deltaY < 0 ? 1.1 : 0.9;
+        camera.zoomAt(mouse, zoomFactor, latestSize);
+      }, { passive: false });
+
+      const drawWorldGrid = (draw) => {
+        for (let x = -1000; x <= 1000; x += 50) {
+          draw.line(vec2(x, -1000), vec2(x, 1000), {
+            stroke: x === 0 ? "#ffffff66" : "#ffffff18",
+            width: x === 0 ? 2 / camera.zoom : 1 / camera.zoom,
+          });
+        }
+
+        for (let y = -1000; y <= 1000; y += 50) {
+          draw.line(vec2(-1000, y), vec2(1000, y), {
+            stroke: y === 0 ? "#ffffff66" : "#ffffff18",
+            width: y === 0 ? 2 / camera.zoom : 1 / camera.zoom,
+          });
+        }
+      };
+
+      const app = createCanvasApp(canvas, ({ draw, size, input }) => {
+        latestSize = size;
+
+        if (input.mouse.left.pressed) {
+          camera.moveBy(vec2(
+            -input.mouse.delta.x / camera.zoom,
+            -input.mouse.delta.y / camera.zoom,
+          ));
+        }
+
+        const worldMouse = camera.screenToWorld(input.mouse.position, size);
+
+        draw.clear("#0f1117");
+
+        draw.withCamera(camera, size, () => {
+          drawWorldGrid(draw);
+
+          draw.rect(rect(-260, -140, 160, 100), {
+            fill: rgba(122, 162, 255, 0.28),
+            stroke: Palette.Skyblue,
+            width: 2 / camera.zoom,
+          });
+
+          draw.shape(circle(vec2(0, 0), 40), {
+            fill: Palette.Skyblue,
+            stroke: Palette.White,
+            width: 2 / camera.zoom,
+          });
+
+          draw.shape(circle(vec2(220, 90), 54), {
+            fill: rgba(80, 250, 123, 0.32),
+            stroke: Palette.Seagreen,
+            width: 2 / camera.zoom,
+          });
+
+          draw.text("world text", vec2(-90, 160), {
+            size: 24,
+            fill: Palette.White,
+            align: "center",
+            baseline: "middle",
+            font,
+          });
+
+          draw.shape(circle(worldMouse, 8), {
+            fill: Palette.Orange,
+          });
+        });
+
+        draw.text(
+          `world mouse: ${worldMouse.x.toFixed(1)}, ${worldMouse.y.toFixed(1)}`,
+          vec2(24, 32),
+          {
+            fill: Palette.White,
+            size: 16,
+            font,
+          },
+        );
+
+        draw.text(
+          `camera center: ${camera.center.x.toFixed(1)}, ${camera.center.y.toFixed(1)} / zoom: ${camera.zoom.toFixed(2)}`,
+          vec2(24, 58),
+          {
+            fill: "#ffffffaa",
+            size: 14,
+            font,
+          },
+        );
+      }, {
+        autoStart: true,
+        maxDpr: 2,
+      });
+
+      window.addEventListener("pagehide", () => app.destroy(), { once: true });
+    </script>
+  </body>
+</html>

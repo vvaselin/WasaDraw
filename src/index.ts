@@ -7,3 +7,4 @@ export * from "./geometry.js";
 export * from "./image.js";
 export * from "./renderTarget.js";
 export * from "./color.js";
+export * from "./camera2d.js";
