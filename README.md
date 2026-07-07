@@ -72,6 +72,11 @@ examples/showcase.html
   - mouse input
   - `EffectManager` click ripple
 
+- `examples/geometry.html`
+  - `vec2()` / `centerOf()`
+  - `contains()` によるホバー判定
+  - `moved()`
+
 - `examples/shapes.html`
   - geometry values
   - circle / rect / line helpers
