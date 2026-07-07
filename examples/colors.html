@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>canvaskit colors example</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: auto;
+        background: #0f1117;
+      }
+
+      canvas {
+        display: block;
+        width: 1200px;
+        height: 760px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <script type="module">
+      import {
+        createCanvasApp,
+        Palette,
+        rgb,
+        rgba,
+        hsl,
+        hsla,
+        vec2,
+        rect,
+      } from "../dist/index.js";
+
+      const swatches = [
+        ["Dodgerblue", Palette.Dodgerblue],
+        ["Royalblue", Palette.Royalblue],
+        ["Deepskyblue", Palette.Deepskyblue],
+        ["Teal", Palette.Teal],
+        ["Cyan", Palette.Cyan],
+        ["Limegreen", Palette.Limegreen],
+        ["Forestgreen", Palette.Forestgreen],
+        ["Gold", Palette.Gold],
+        ["Khaki", Palette.Khaki],
+        ["Salmon", Palette.Salmon],
+        ["Tomato", Palette.Tomato],
+        ["Crimson", Palette.Crimson],
+        ["Hotpink", Palette.Hotpink],
+        ["Magenta", Palette.Magenta],
+        ["Purple", Palette.Purple],
+        ["Chocolate", Palette.Chocolate],
+      ];
+
+      createCanvasApp("#canvas", ({ draw, time, size }) => {
+        draw.clear("#0f1117");
+
+        draw.text("color API: rgb() / rgba() / hsl() / hsla() + Palette", vec2(40, 48), {
+          size: 24,
+          fill: Palette.White,
+          font: "system-ui, sans-serif",
+        });
+
+        draw.text("rgb() / hsl() は CSS の色文字列を作るだけなので、fill / stroke / clear にそのまま渡せます。", vec2(80, 84), {
+          size: 15,
+          fill: "#ffffff99",
+          font: "system-ui, sans-serif",
+        });
+
+        draw.text("Hue strip: hsl(i * step, 80, 60)", vec2(80, 134), {
+          size: 16,
+          fill: "#ffffffcc",
+          font: "system-ui, sans-serif",
+        });
+
+        // h は有限の角度なら任意の値を使えます。ここでは 0..360 を小さな矩形に割り当てます。
+        const hueSteps = 72;
+        const hueX = 80;
+        const hueY = 154;
+        const hueW = 760;
+        const hueH = 44;
+        for (let i = 0; i < hueSteps; i += 1) {
+          const t = i / (hueSteps - 1);
+          draw.rect(rect(hueX + t * hueW, hueY, hueW / hueSteps + 1, hueH), {
+            fill: hsl(t * 360, 80, 60),
+          });
+        }
+
+        draw.text("Animated hue", vec2(945, 134), {
+          size: 16,
+          fill: "#ffffffcc",
+          align: "center",
+          font: "system-ui, sans-serif",
+        });
+
+        // time は増え続けるので、剰余で h を見やすい範囲に戻します。
+        const animatedHue = (time * 40) % 360;
+        draw.circle(vec2(945, 178), 42, {
+          fill: hsl(animatedHue, 80, 60),
+          stroke: hsla(animatedHue + 180, 80, 70, 0.8),
+          width: 4,
+        });
+
+        draw.text("hsl(" + Math.round(animatedHue) + ", 80, 60)", vec2(945, 238), {
+          size: 14,
+          fill: "#ffffff99",
+          align: "center",
+          font: "system-ui, sans-serif",
+        });
+
+        draw.text("Alpha row: rgba(...)", vec2(80, 274), {
+          size: 16,
+          fill: "#ffffffcc",
+          font: "system-ui, sans-serif",
+        });
+
+        // rgba() は透過色を作るときに使います。alpha は 0..1 の範囲です。
+        for (let i = 0; i < 7; i += 1) {
+          const alpha = 0.18 + i * 0.12;
+          draw.circle(vec2(128 + i * 72, 338), 44, {
+            fill: rgba(255, 128, 0, alpha),
+            stroke: rgba(255, 255, 255, 0.55),
+            width: 2,
+          });
+        }
+
+        draw.text("rgb gradient: rgb(Math.round(t * 255), 80, 160)", vec2(80, 434), {
+          size: 16,
+          fill: "#ffffffcc",
+          font: "system-ui, sans-serif",
+        });
+
+        // rgb() は 0..255 の整数値を想定します。補正せず、範囲外なら RangeError を投げます。
+        const rgbSteps = 64;
+        for (let i = 0; i < rgbSteps; i += 1) {
+          const t = i / (rgbSteps - 1);
+          draw.rect(rect(80 + t * 760, 454, 760 / rgbSteps + 1, 44), {
+            fill: rgb(Math.round(t * 255), 80, 160),
+          });
+        }
+
+        draw.text("Palette swatches", vec2(80, 554), {
+          size: 16,
+          fill: "#ffffffcc",
+          font: "system-ui, sans-serif",
+        });
+
+        // Palette の名前付き色も通常の色文字列なので、同じ style API で使えます。
+        swatches.forEach(([name, color], index) => {
+          const col = index % 4;
+          const row = Math.floor(index / 4);
+          const x = 80 + col * 260;
+          const y = 584 + row * 40;
+
+          draw.roundRect(rect(x, y, 34, 24), 6, {
+            fill: color,
+            stroke: "#ffffff33",
+            width: 1,
+          });
+
+          draw.text(name, vec2(x + 46, y + 13), {
+            size: 14,
+            fill: "#ffffffcc",
+            baseline: "middle",
+            font: "system-ui, sans-serif",
+          });
+        });
+
+        draw.text("clamp しない設計です。入力ミスは RangeError として早めに見つけます。", vec2(size.center.x, 750), {
+          size: 14,
+          fill: "#ffffff80",
+          align: "center",
+          font: "system-ui, sans-serif",
+        });
+      }, {
+        autoStart: true,
+        maxDpr: 2,
+      });
+    </script>
+  </body>
+</html>

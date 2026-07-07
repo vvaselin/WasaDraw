@@ -51,6 +51,7 @@ npm run build
 examples/basic.html
 examples/geometry.html
 examples/shapes.html
+examples/colors.html
 ```
 
 サンプルは `../dist/index.js` を import します。`src/` を変更した後は `npm run build` を実行してください。
@@ -72,6 +73,11 @@ examples/shapes.html
   - `centerOf()`
   - ellipse / triangle / polygon / polyline / arc
   - dashed lines
+
+- `examples/colors.html`
+  - `rgb()` / `rgba()` / `hsl()` / `hsla()`
+  - hue animation
+  - Palette 色見本
 
 ## 最小サンプル
 
@@ -272,6 +278,20 @@ draw.circle(pos, 32, Palette.White);
 
 `fill, stroke, width` を位置引数で並べるような、意味が分かりづらい可変長引数APIは用意しません。
 
+## 色
+
+`rgb()` / `rgba()` / `hsl()` / `hsla()` は CSS color string を返します。`fill` / `stroke` / `draw.clear()` など、色文字列を受け取る場所でそのまま使えます。出力は `rgb(255 128 0)` や `hsl(210 80% 60%)` のような modern space-separated syntax です。
+
+範囲は `r/g/b: 0..255`、`s/l: 0..100`、`a: 0..1` です。`h` は有限の角度なら任意の値を渡せます。範囲外や `NaN` / `Infinity` は `RangeError` です。勝手に clamp しません。Color class はまだありません。
+
+```ts
+draw.circle(pos, 32, {
+  fill: hsl(210, 80, 60),
+  stroke: rgba(255, 255, 255, 0.4),
+  width: 2,
+});
+```
+
 ## 絵文字描画
 
 `draw.emoji()` は、現時点では Canvas の text 描画、つまり `fillText()` で実装しています。
@@ -298,6 +318,10 @@ draw.circle(pos, 32, Palette.White);
 - `createCanvasApp(canvasOrSelector, frame, options?)`
 - `createEffectManager()`
 - `Palette`
+- `rgb()`
+- `rgba()`
+- `hsl()`
+- `hsla()`
 - `vec2()`
 - `rect()`
 - `circle()`
@@ -373,6 +397,11 @@ style object では次の `ShapeStyle` properties を使えます。
 - arc
 - dashed line via ShapeStyle.dash
 
+### v0.3 completed or in progress
+
+- Palette拡張
+- rgb() / rgba() / hsl() / hsla()
+
 ### v0.3 candidate
 
 - draw.image
@@ -380,8 +409,6 @@ style object では次の `ShapeStyle` properties を使えます。
 - pauseWhenHidden
 - pauseWhenOffscreen
 - respectReducedMotion
-- Palette拡張
-- rgb() / rgba() / hsl() / hsla()
 
 ### v0.4 candidate
 

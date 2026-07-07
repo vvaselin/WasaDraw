@@ -4,3 +4,4 @@ export * from "./math.js";
 export * from "./createCanvasApp.js";
 export * from "./effect.js";
 export * from "./geometry.js";
+export * from "./color.js";
