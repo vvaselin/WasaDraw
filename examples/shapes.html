@@ -13,14 +13,14 @@
       }
 
       body {
-        overflow: hidden;
+        overflow: auto;
         background: #0f1117;
       }
 
       canvas {
         display: block;
-        width: 100vw;
-        height: 100vh;
+        width: 1200px;
+        height: 760px;
       }
     </style>
   </head>
@@ -31,49 +31,155 @@
       import {
         createCanvasApp,
         Palette,
+        vec2,
+        rect,
+        circle,
+        line,
+        moved,
+        centerOf,
+        deg,
       } from "../dist/index.js";
+
+      // Geometry value: 一度作って、描画や移動に使い回す図形データです。
+      // circle() は plain object を作るだけで、描画はしません。
+      const baseCircle = circle(vec2(140, 140), 48);
+      const movedCircle = moved(baseCircle, vec2(150, 0));
+
+      // 元図形と加工後図形を別変数として持つ例です。
+      const source = circle(vec2(160, 500), 40);
+      const shifted = moved(source, vec2(150, 0));
+
+      // Rect value は draw.rect() / draw.roundRect() にそのまま渡せます。
+      const card = rect(430, 92, 240, 104);
+      const cardCenter = centerOf(card);
+      const shiftedCard = moved(card, vec2(0, 160));
+      const shiftedCardCenter = centerOf(shiftedCard);
+
+      // Line value は from / to をまとめて保持できます。
+      const guide = line(vec2(80, 330), vec2(380, 330));
+      const movingGuide = moved(guide, vec2(0, 64));
+
+      // 点列も geometry value として先に作っておけます。
+      const polygonPoints = [
+        vec2(850, 108),
+        vec2(930, 160),
+        vec2(900, 252),
+        vec2(800, 252),
+        vec2(770, 160),
+      ];
+
+      const polylinePoints = [
+        vec2(760, 500),
+        vec2(850, 450),
+        vec2(940, 520),
+        vec2(1030, 470),
+        vec2(1120, 530),
+      ];
 
       createCanvasApp("#canvas", ({ draw, time, size }) => {
         draw.clear("#0f1117");
 
-        draw.text("v0.2 shapes", { x: 40, y: 44 }, {
+        draw.text("geometry values + draw calls", vec2(40, 48), {
           size: 24,
           fill: Palette.White,
           font: "system-ui, sans-serif",
         });
 
-        draw.ellipse({ x: 160, y: 120 }, 80, 40, {
+        draw.text("circle() は図形データを作る / draw.circle() は描画する", vec2(80, 84), {
+          size: 15,
+          fill: "#ffffff99",
+          font: "system-ui, sans-serif",
+        });
+
+        // 描画命令: geometry value を draw API に渡します。
+        // draw.circle() は circle.center と circle.r を使って描画します。
+        draw.circle(baseCircle.center, baseCircle.r, {
+          fill: Palette.Skyblue,
+        });
+
+        draw.circle(movedCircle.center, movedCircle.r, {
+          stroke: Palette.White,
+          width: 2,
+        });
+
+        draw.line(baseCircle.center, movedCircle.center, {
+          stroke: "#ffffff44",
+          width: 2,
+          dash: [8, 6],
+        });
+
+        // Rect geometry value は矩形描画APIにそのまま渡します。
+        draw.roundRect(card, 18, {
+          fill: "#171d2a",
+          stroke: "#ffffff33",
+          width: 1,
+        });
+
+        draw.text("Rect as value", cardCenter, {
+          size: 18,
+          fill: Palette.White,
+          align: "center",
+          baseline: "middle",
+          font: "system-ui, sans-serif",
+        });
+
+        draw.emoji("✨", {
+          x: cardCenter.x + 86,
+          y: cardCenter.y,
+        }, {
+          size: 24,
+        });
+
+        // moved(rect) は新しいRectを返します。元の card は変更されません。
+        draw.rect(shiftedCard, {
+          fill: "#18251f",
+          stroke: Palette.Seagreen,
+          width: 2,
+        });
+
+        draw.text("moved(rect)", shiftedCardCenter, {
+          size: 18,
+          fill: Palette.White,
+          align: "center",
+          baseline: "middle",
+          font: "system-ui, sans-serif",
+        });
+
+        // draw.line() は line.from と line.to を使って描画します。
+        draw.line(guide.from, guide.to, {
+          stroke: "#ffffff66",
+          width: 2,
+          dash: [8, 6],
+        });
+
+        draw.line(movingGuide.from, movingGuide.to, {
+          stroke: Palette.Orange,
+          width: 3,
+          lineCap: "round",
+        });
+
+        // v0.2 の追加図形APIも、geometry helper と一緒に使えます。
+        draw.ellipse(vec2(140, 255), 80, 40, {
           fill: "#7aa2ff",
+          alpha: 0.75,
         });
 
         draw.triangle(
-          { x: 320, y: 80 },
-          { x: 260, y: 180 },
-          { x: 380, y: 180 },
+          vec2(320, 235),
+          vec2(260, 335),
+          vec2(380, 335),
           {
             fill: "#ffb86c",
           },
         );
 
-        draw.polygon([
-          { x: 500, y: 80 },
-          { x: 560, y: 120 },
-          { x: 540, y: 190 },
-          { x: 460, y: 190 },
-          { x: 440, y: 120 },
-        ], {
+        draw.polygon(polygonPoints, {
           fill: "#50fa7b",
           stroke: "#ffffff66",
           width: 2,
         });
 
-        draw.polyline([
-          { x: 80, y: 280 },
-          { x: 160, y: 240 },
-          { x: 240, y: 300 },
-          { x: 320, y: 260 },
-          { x: 400, y: 300 },
-        ], {
+        draw.polyline(polylinePoints, {
           stroke: "#ffffff99",
           width: 3,
           dash: [8, 6],
@@ -81,23 +187,54 @@
           lineJoin: "round",
         });
 
-        draw.arc({ x: 540, y: 280 }, 60, 0, Math.PI * 1.5, {
+        draw.arc(vec2(900, 360), 60, deg(-30), deg(243), {
           stroke: "#ff79c6",
           width: 4,
           lineCap: "round",
         });
 
-        const orbitX = size.center.x + Math.cos(time) * 80;
-        const orbitY = 420 + Math.sin(time) * 32;
+        // 元図形と加工後図形を並べて見せる例です。
+        // buffer helper はまだないので、このサンプルでは r + 16 を直接使います。
+        draw.circle(shifted.center, shifted.r + 16, {
+          fill: "#ffffff18",
+        });
 
-        draw.line({ x: size.center.x - 120, y: 420 }, { x: size.center.x + 120, y: 420 }, {
+        draw.circle(source.center, source.r, {
+          stroke: Palette.White,
+          width: 3,
+        });
+
+        draw.circle(shifted.center, shifted.r, {
+          fill: Palette.Orange,
+          alpha: 0.9,
+        });
+
+        draw.line(source.center, shifted.center, {
           stroke: "#ffffff33",
           width: 2,
           dash: [4, 8],
         });
 
-        draw.circle({ x: orbitX, y: orbitY }, 18, {
-          fill: Palette.Orange,
+        draw.text("元図形 source と moved(source)", vec2(88, 580), {
+          size: 15,
+          fill: "#ffffff99",
+          font: "system-ui, sans-serif",
+        });
+
+        // 動的な geometry value: time と size から毎フレーム作ります。
+        const orbit = circle(
+          vec2(Math.max(720, size.center.x) + Math.cos(time) * 90, 660 + Math.sin(time) * 28),
+          18,
+        );
+
+        draw.line(vec2(Math.max(720, size.center.x) - 130, 660), vec2(Math.max(720, size.center.x) + 130, 660), {
+          stroke: "#ffffff33",
+          width: 2,
+          dash: [4, 8],
+        });
+
+        draw.circle(orbit.center, orbit.r, {
+          fill: Palette.Skyblue,
           stroke: Palette.White,
           width: 2,
         });

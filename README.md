@@ -179,7 +179,25 @@ createCanvasApp("#canvas", (context) => {
 - `intersects(a, b)` は rect/rect、circle/circle、rect/circle の交差を判定します。接しているだけの場合も交差として扱います。
 - `moved(shape, offset)` は元の図形を変更せず、移動後の新しい図形を返します。
 
+`circle()` / `rect()` / `line()` は geometry value を作る関数です。一方、`draw.circle()` / `draw.rect()` / `draw.line()` は実際に Canvas へ描画する関数です。同じ図形を何度も描く、移動した図形を作る、`contains()` / `intersects()` の判定にも使う、といった場合は geometry helper で図形を変数として保持すると読みやすくなります。
+
 回転Rect、Polygon、Line交差判定はまだ対応していません。未対応のgeometry処理を近似的な別処理へ置き換えるフォールバックも入れていません。
+
+図形データは変数として保持できますが、描画は `shape.draw()` ではなく即時描画APIで行います。たとえば円は `draw.circle(shape.center, shape.r, style)` のように描きます。これは、plain object の図形データと `draw` による描画命令を意図的に分けているためです。`shape.draw()` 形式は今後検討できますが、現時点では実装していません。
+
+```ts
+const c = circle(vec2(120, 80), 32);
+const shifted = moved(c, vec2(80, 0));
+
+draw.circle(c.center, c.r, {
+  fill: Palette.Skyblue,
+});
+
+draw.circle(shifted.center, shifted.r, {
+  stroke: Palette.White,
+  width: 2,
+});
+```
 
 ```ts
 const button = rect(40, 40, 220, 72);
