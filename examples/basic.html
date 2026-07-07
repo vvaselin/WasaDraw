@@ -30,6 +30,7 @@
     <script type="module">
       import {
         createCanvasApp,
+        createEffectManager,
         Palette,
         deg,
         lerp,
@@ -37,18 +38,34 @@
         easeOutCubic,
       } from "../dist/index.js";
 
-      const ripples = [];
+      const effects = createEffectManager();
 
-      const app = createCanvasApp("#canvas", ({ draw, time, deltaTime, size, input }) => {
+      const app = createCanvasApp("#canvas", (context) => {
+        const { draw, time, deltaTime, size, input } = context;
+
         draw.clear("#0f1117");
 
         const mouse = input.mouse;
 
         if (mouse.left.down) {
-          ripples.push({
-            x: mouse.position.x,
-            y: mouse.position.y,
-            age: 0,
+          const pos = { ...mouse.position };
+
+          effects.add((t, { draw }) => {
+            const progress = t / 0.8;
+
+            if (progress >= 1) {
+              return false;
+            }
+
+            const eased = easeOutCubic(progress);
+
+            draw.circle(pos, eased * 96, {
+              stroke: Palette.White,
+              width: 2,
+              alpha: 1 - progress,
+            });
+
+            return true;
           });
         }
 
@@ -116,29 +133,7 @@
           scale: 1 + Math.sin(time * 2) * 0.08,
         });
 
-        for (let i = ripples.length - 1; i >= 0; i -= 1) {
-          const ripple = ripples[i];
-          ripple.age += deltaTime;
-
-          const progress = ripple.age / 0.8;
-
-          if (progress >= 1) {
-            ripples.splice(i, 1);
-            continue;
-          }
-
-          const eased = easeOutCubic(progress);
-
-          draw.circle(
-            { x: ripple.x, y: ripple.y },
-            eased * 96,
-            {
-              stroke: Palette.White,
-              width: 2,
-              alpha: 1 - progress,
-            },
-          );
-        }
+        effects.update(deltaTime, context);
       }, {
         autoStart: true,
         maxDpr: 2,

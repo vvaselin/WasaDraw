@@ -73,6 +73,47 @@ createCanvasApp("#canvas", ({ draw, size }) => {
 });
 ```
 
+## Effects
+
+`createEffectManager()` manages short-lived drawing effects such as click ripples, particles, emoji bursts, and hover accents.
+
+An effect function receives elapsed time `t` and the current frame context. Return `true` to keep the effect alive, or `false` to remove it. Exceptions thrown inside an effect are not caught or hidden. Async effects, Promise handling, and automatic fallback behavior are not supported.
+
+```ts
+import {
+  createCanvasApp,
+  createEffectManager,
+  Palette,
+  type CanvasFrameContext,
+} from "./dist/index.js";
+
+const effects = createEffectManager<CanvasFrameContext>();
+
+createCanvasApp("#canvas", (context) => {
+  const { draw, input, deltaTime } = context;
+
+  draw.clear("#0f1117");
+
+  if (input.mouse.left.down) {
+    const pos = { ...input.mouse.position };
+
+    effects.add((t, { draw }) => {
+      draw.circle(pos, t * 120, {
+        stroke: Palette.White,
+        width: 2,
+        alpha: 1 - t,
+      });
+
+      return t < 1.0;
+    });
+  }
+
+  effects.update(deltaTime, context);
+}, {
+  autoStart: true,
+});
+```
+
 ## Style Objects
 
 Shape styles are object-based so calls stay readable as the options grow:
@@ -120,6 +161,7 @@ If an alternative path becomes necessary later, it should be added deliberately 
 ## Current API
 
 - `createCanvasApp(canvasOrSelector, frame, options?)`
+- `createEffectManager()`
 - `Palette`
 - `deg()`
 - `rad()`
