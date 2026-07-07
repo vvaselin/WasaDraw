@@ -54,6 +54,7 @@ examples/shapes.html
 examples/colors.html
 examples/transform.html
 examples/state.html
+examples/render-target.html
 examples/images.html
 examples/lifecycle.html
 examples/offscreen.html
@@ -100,6 +101,11 @@ examples/showcase.html
   - `draw.withState()`
   - glow / blend / group alpha / filter
   - `withTransform` との nest
+
+- `examples/render-target.html`
+  - `createRenderTarget()`
+  - 1 回だけ描いて複数箇所に再描画
+  - クリックで描き直し
 
 - `examples/images.html`
   - `draw.image()` / `loadImage()`
@@ -405,6 +411,30 @@ draw.withState({
 });
 ```
 
+## RenderTarget
+
+`createRenderTarget(width, height, options?)` は、メイン Canvas とは別の内部 Canvas に描くための軽量な描画先です。複雑な図形の再描画、pattern 生成、簡単な cache に使います。`width` / `height` は CSS pixel 基準で、`options.maxDpr` で dpr を制限できます。内部 Canvas の pixel size は `width * dpr` / `height * dpr` です。
+
+`target.render(callback)` の callback には `{ draw, size, canvas, context }` が渡されます。`draw` は `createCanvasApp()` と同じ API で、CSS pixel 座標のまま描けます。`render()` は自動 clear しません。必要なら `target.clear(color?)`、または callback 内の `draw.clear()` を使います。
+
+メイン Canvas へは `draw.image(target.canvas, pos, { width: target.width, height: target.height })` で描きます。`width` / `height` を渡さないと、内部 Canvas の pixel size、つまり dpr 倍の大きさで描かれるので注意してください。
+
+`resize(w, h)` で再配置できます。`destroy()` 後の `render` / `clear` / `resize` は throw します。OffscreenCanvas は使いません。blur / post effect / multi pass は未対応です。`document` がない環境への fallback もしません。
+
+```ts
+const stamp = createRenderTarget(160, 160);
+stamp.render(({ draw, size }) => {
+  draw.clear();
+  draw.circle(size.center, 60, { fill: Palette.Skyblue });
+});
+
+// main canvas 側
+draw.image(stamp.canvas, vec2(200, 150), {
+  width: stamp.width,
+  height: stamp.height,
+});
+```
+
 ## 絵文字描画
 
 `draw.emoji()` は、現時点では Canvas の text 描画、つまり `fillText()` で実装しています。
@@ -449,6 +479,7 @@ draw.image(logo, vec2(400, 150), { scale: 0.5, rotation: deg(15), alpha: 0.8 });
 
 - `createCanvasApp(canvasOrSelector, frame, options?)`
 - `createEffectManager()`
+- `createRenderTarget()`
 - `Palette`
 - `rgb()`
 - `rgba()`
@@ -546,9 +577,9 @@ style object では次の `ShapeStyle` properties を使えます。
 ### v0.4 completed or in progress
 
 - draw.withState() (RenderState2D)
+- RenderTarget (createRenderTarget)
 
 ### v0.4 candidate
 
 - Color class
-- RenderTarget
 - Camera2D

@@ -5,4 +5,5 @@ export * from "./createCanvasApp.js";
 export * from "./effect.js";
 export * from "./geometry.js";
 export * from "./image.js";
+export * from "./renderTarget.js";
 export * from "./color.js";
