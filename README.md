@@ -174,7 +174,7 @@ createCanvasApp("#canvas", ({ draw, size }) => {
 - `pauseWhenOffscreen` は Canvas が viewport 外にある間だけ rAF loop を止めるかどうかです。既定値は `false` です。複数の Canvas 装飾を置くページで、画面外の Canvas が描き続けないようにするための設定です。内部では `IntersectionObserver` を使います。再開時は `lastTime` をリセットするため、`deltaTime` は大きく跳ねません。`stop()` で止めた場合は、viewport に戻っても再開しません。`destroy()` は `IntersectionObserver.disconnect()` も呼びます。`IntersectionObserver` がない環境への fallback はありません。`pauseWhenHidden` と両方 `true` の場合、hidden または offscreen のどちらかなら停止し、visible かつ onscreen のときだけ再開します。
 - `respectReducedMotion` は、ユーザーが OS で「視差効果を減らす」などの `prefers-reduced-motion: reduce` を選んでいる間、rAF loop を進めない設定です。既定値は `false` です。空白の Canvas を避けるため、`start()` 時は 1 frame だけ描画して静止画を残します。アニメーション中に reduce になった場合は最後の frame が残り、解除されると再開します。再開時は `lastTime` をリセットするため、`deltaTime` は跳ねません。`stop()` 後は、解除されても再開しません。`destroy()` は media query の `change` listener も外します。`matchMedia` がない環境への fallback はありません。`pauseWhenHidden` / `pauseWhenOffscreen` と組み合わせた場合、visible かつ onscreen かつ reduce でないときだけ loop が進みます。
 
-frame callback には `{ draw, time, deltaTime, frame, size, input }` が渡されます。`size` は `{ width, height, center }`、`input.mouse` で mouse 状態を読めます。
+frame callback には `{ draw, time, deltaTime, frame, size, input }` が渡されます。`size` は `{ width, height, center }` です。`input.mouse` は `{ position, delta, left }` で、`delta` はそのフレーム内の移動量、`left` は `{ pressed, down, up }`(押している間 / 押した瞬間 / 離した瞬間)です。
 
 ```ts
 createCanvasApp("#canvas", frame, {
@@ -624,6 +624,12 @@ style object では次の properties を使えます。
 - `TextStyle.align`
 - `TextStyle.baseline`
 - `TextStyle.alpha`
+- `EmojiStyle.size`
+- `EmojiStyle.font`
+- `EmojiStyle.rotation`
+- `EmojiStyle.scale`
+- `EmojiStyle.mirrored`
+- `EmojiStyle.alpha`
 - `ImageStyle.width`
 - `ImageStyle.height`
 - `ImageStyle.scale`

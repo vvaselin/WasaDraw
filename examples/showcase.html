@@ -3,36 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>canvaskit v0.4 showcase</title>
+    <title>canvaskit showcase</title>
     <style>
       html,
       body {
-        width: 100%;
-        min-height: 100%;
         margin: 0;
+        min-height: 100%;
       }
 
       body {
         overflow: auto;
         overflow-x: hidden;
         background: #0f1117;
-        color: #ffffff99;
+        color: #d9e7ff;
         font-family: system-ui, sans-serif;
       }
 
-      canvas {
+      #canvas {
         display: block;
-        width: 100%;
+        width: 100vw;
         height: 100vh;
+        touch-action: none;
+        cursor: grab;
+      }
+
+      #canvas:active {
+        cursor: grabbing;
       }
 
       .spacer {
+        height: 55vh;
         display: grid;
-        height: 54vh;
-        place-items: start center;
-        padding-top: 32px;
-        box-sizing: border-box;
-        color: #ffffff55;
+        place-items: center;
+        color: rgb(217 231 255 / 0.34);
+        font-size: 13px;
         letter-spacing: 0;
       }
     </style>
@@ -44,9 +48,9 @@
     <script type="module">
       import {
         createCanvasApp,
+        createCamera2D,
         createEffectManager,
         createRenderTarget,
-        createCamera2D,
         Palette,
         Color,
         rgb,
@@ -57,57 +61,316 @@
         rect,
         circle,
         line,
-        moved,
         centerOf,
         contains,
         deg,
         easeOutCubic,
-        pingPong,
       } from "../dist/index.js";
 
       const canvas = document.querySelector("#canvas");
-      if (!(canvas instanceof HTMLCanvasElement)) {
-        throw new Error("showcase: #canvas must be a canvas element.");
-      }
-
       const font = "system-ui, sans-serif";
+      const camera = createCamera2D({ center: vec2(0, 0), zoom: 0.9 });
       const effects = createEffectManager();
-      const camera = createCamera2D({
-        center: vec2(80, -80),
-        zoom: 0.74,
-      });
-      let latestSize = null;
-
       const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const nebula = createRenderTarget(220, 220, { maxDpr: 2 });
+
+      const hudCard = rect(20, 20, 340, 168);
+      let latestSize = null;
       let reduced = reducedQuery.matches;
+
+      // 表示用です。library 側は respectReducedMotion で loop が止まり、最後の1フレームが残ります。
       reducedQuery.addEventListener("change", (event) => {
         reduced = event.matches;
       });
 
-      const badge = createRenderTarget(148, 148, { maxDpr: 2 });
-      badge.render(({ draw, size }) => {
-        draw.clear();
+      const mulberry32 = (seed) => () => {
+        let t = seed += 0x6d2b79f5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+
+      const random = mulberry32(202604);
+
+      // 再生ごとに同じ空にするため、星は起動時に一度だけ作ります。
+      const stars = Array.from({ length: 90 }, () => ({
+        pos: vec2(random() * 1800 - 900, random() * 1200 - 600),
+        r: random() * 1.2 + 0.6,
+        tw: random() * Math.PI * 2,
+      }));
+
+      const nebulaStamps = [
+        { pos: vec2(-560, -300), alpha: 0.62, rotation: deg(-12) },
+        { pos: vec2(520, -260), alpha: 0.54, rotation: deg(18) },
+        { pos: vec2(-420, 340), alpha: 0.78, rotation: deg(34) },
+      ];
+
+      const constellation = [
+        vec2(420, 260),
+        vec2(484, 318),
+        vec2(552, 288),
+        vec2(604, 352),
+        vec2(680, 374),
+        vec2(646, 438),
+      ];
+
+      const renderNebula = () => {
+        // RenderTarget に一度だけ描いて、world に複数 stamp する cache です。
+        nebula.clear();
+        nebula.render(({ draw, size }) => {
+          draw.clear(rgba(0, 0, 0, 0));
+
+          draw.withState({
+            blend: "lighter",
+            shadowBlur: 30,
+            shadowColor: hsla(264, 86, 62, 0.72),
+          }, () => {
+            draw.circle(vec2(size.center.x - 28, size.center.y + 10), 58, {
+              fill: hsla(264, 86, 58, 0.18),
+            });
+            draw.circle(vec2(size.center.x + 22, size.center.y - 18), 48, {
+              fill: hsla(205, 88, 62, 0.2),
+            });
+            draw.circle(vec2(size.center.x + 8, size.center.y + 34), 38, {
+              fill: hsla(318, 72, 62, 0.15),
+            });
+            draw.circle(size.center, 72, {
+              fill: hsla(226, 76, 55, 0.1),
+            });
+          });
+
+          for (let i = 0; i < 16; i += 1) {
+            draw.circle(vec2(random() * 180 + 20, random() * 180 + 20), random() * 1.2 + 0.5, {
+              fill: rgba(240, 248, 255, random() * 0.42 + 0.22),
+            });
+          }
+        });
+      };
+
+      const drawStars = (draw, motionTime) => {
+        // 低速の twinkle。reduced では中間の明るさで止めます。
+        for (const star of stars) {
+          const alpha = reduced ? 0.52 : 0.25 + ((Math.sin(motionTime * 1.5 + star.tw) + 1) / 2) * 0.55;
+          draw.circle(star.pos, star.r, { fill: rgba(238, 246, 255, alpha) });
+        }
+      };
+
+      const drawGrid = (draw) => {
+        for (let x = -960; x <= 960; x += 120) {
+          draw.shape(line(vec2(x, -720), vec2(x, 720)), {
+            stroke: rgba(150, 190, 255, x === 0 ? 0.12 : 0.04),
+            width: x === 0 ? 1.4 : 1,
+          });
+        }
+
+        for (let y = -720; y <= 720; y += 120) {
+          draw.line(vec2(-960, y), vec2(960, y), {
+            stroke: rgba(150, 190, 255, y === 0 ? 0.12 : 0.04),
+            width: y === 0 ? 1.4 : 1,
+          });
+        }
+      };
+
+      const drawNebulaStamps = (draw) => {
+        for (const stamp of nebulaStamps) {
+          draw.image(nebula.canvas, stamp.pos, {
+            width: nebula.width,
+            height: nebula.height,
+            alpha: stamp.alpha,
+            rotation: stamp.rotation,
+          });
+        }
+      };
+
+      const drawSun = (draw, motionTime) => {
+        // scene の中心。glow は lighter と shadow で作ります。
+        const hue = 38 + Math.sin(motionTime * 0.4) * 6;
         draw.withState({
-          shadowBlur: 18,
-          shadowColor: rgba(122, 162, 255, 0.65),
+          blend: "lighter",
+          shadowBlur: 40,
+          shadowColor: hsla(hue, 92, 62, 0.68),
         }, () => {
-          draw.circle(size.center, 54, {
-            fill: Color.rgb(122, 162, 255).withAlpha(0.24).toString(),
-            stroke: Palette.Skyblue,
-            width: 4,
+          draw.circle(vec2(0, 0), 58, { fill: hsl(hue, 92, 58) });
+          draw.shape(circle(vec2(0, 0), 88), {
+            stroke: hsla(hue, 92, 66, 0.16),
+            width: 2,
+          });
+          draw.shape(circle(vec2(0, 0), 126), {
+            stroke: hsla(hue, 92, 70, 0.08),
+            width: 1.5,
           });
         });
-        draw.emoji("\u{2728}", size.center, {
-          size: 46,
+      };
+
+      const drawOrbits = (draw, motionTime) => {
+        // transform の nest が見えるように、惑星と月を段階的に回します。
+        draw.shape(circle(vec2(0, 0), 190), {
+          stroke: rgba(122, 162, 255, 0.12),
+          width: 1.5,
         });
-        draw.text("RT", vec2(size.center.x, 112), {
-          size: 15,
-          fill: Palette.White,
-          align: "center",
-          baseline: "middle",
+        draw.shape(circle(vec2(0, 0), 330), {
+          stroke: rgba(70, 214, 150, 0.12),
+          width: 1.5,
+        });
+
+        draw.withTransform({ rotate: motionTime * 0.55 }, () => {
+          const planet = vec2(190, 0);
+          draw.circle(planet, 22, { fill: Color.rgb(122, 162, 255).toString() });
+          draw.shape(circle(planet, 31), {
+            stroke: rgba(122, 162, 255, 0.18),
+            width: 1.2,
+          });
+
+          draw.withTransform({ translate: planet, rotate: motionTime * 2.2 }, () => {
+            draw.emoji("\u{1F6F0}\u{FE0F}", vec2(44, 0), { size: 26 });
+          });
+        });
+
+        draw.withTransform({ rotate: motionTime * -0.34 }, () => {
+          const planet = vec2(330, 0);
+          draw.circle(planet, 16, {
+            fill: Color.rgb(46, 139, 87).withAlpha(0.92).toString(),
+            stroke: Palette.Seagreen,
+            width: 1.2,
+          });
+          draw.withTransform({ translate: planet, rotate: motionTime * 1.8 }, () => {
+            draw.circle(vec2(34, 0), 5, { fill: rgba(220, 255, 236, 0.88) });
+          });
+        });
+      };
+
+      const drawComet = (draw, motionTime) => {
+        const a = motionTime * 0.3;
+        const pos = vec2(Math.cos(a) * 520, Math.sin(a) * 300 - 40);
+        const prev = vec2(Math.cos(a - 0.26) * 520, Math.sin(a - 0.26) * 300 - 40);
+        const prev2 = vec2(Math.cos(a - 0.46) * 520, Math.sin(a - 0.46) * 300 - 40);
+
+        draw.withState({ blend: "lighter", lineCap: "round", lineJoin: "round" }, () => {
+          draw.polyline([prev2, prev, pos], {
+            stroke: rgba(116, 214, 255, 0.24),
+            width: 3,
+            dash: [10, 12],
+          });
+          draw.emoji("\u{2604}\u{FE0F}", pos, { size: 30 });
+        });
+      };
+
+      const drawConstellation = (draw, motionTime) => {
+        // 右上は静かな constellation。惑星と重ならない位置に置きます。
+        draw.polyline(constellation, {
+          stroke: rgba(172, 219, 255, 0.35),
+          width: 1.4,
+          lineCap: "round",
+          lineJoin: "round",
+        });
+
+        for (let i = 0; i < constellation.length; i += 1) {
+          const p = constellation[i];
+          const focused = i === 3;
+          draw.circle(p, focused ? 5 : 3, {
+            fill: focused ? hsl(188 + Math.sin(motionTime) * 26, 84, 64) : rgba(222, 242, 255, 0.74),
+          });
+        }
+      };
+
+      const drawWorldMouse = (draw, mouse, size) => {
+        const worldMouse = camera.screenToWorld(mouse.position, size);
+        draw.circle(worldMouse, 7, { fill: rgba(255, 154, 72, 0.18) });
+        draw.circle(worldMouse, 3, { fill: rgba(255, 154, 72, 0.88) });
+      };
+
+      const drawHud = (draw, mouse, size, deltaTime, frame, hovered) => {
+        // HUD は screen space。world の camera 変換の外で描きます。
+        const base = Color.rgb(12, 21, 38);
+        const accent = Color.rgb(96, 176, 255);
+        const fill = Color.lerp(base, accent, hovered ? 0.35 : 0.1).withAlpha(0.9).toString();
+        const worldMouse = camera.screenToWorld(mouse.position, size);
+
+        draw.withState({
+          shadowBlur: hovered ? 24 : 10,
+          shadowColor: rgba(72, 172, 255, 0.35),
+        }, () => {
+          draw.rect(hudCard, {
+            fill,
+            stroke: hovered ? rgba(127, 205, 255, 0.74) : rgba(127, 205, 255, 0.28),
+            width: 1,
+          });
+        });
+
+        draw.text("CanvasKit v0.4 showcase", vec2(hudCard.x + 18, hudCard.y + 25), {
+          size: 20,
+          fill: rgb(233, 244, 255),
+          baseline: "top",
           font,
         });
-      });
+
+        // multiline text は \n と lineHeight で整えます。
+        draw.text([
+          "frame: " + frame.toString().padStart(5, "0"),
+          "delta: " + (deltaTime * 1000).toFixed(1) + " ms",
+          "zoom: " + camera.zoom.toFixed(2),
+          "world: " + worldMouse.x.toFixed(1) + ", " + worldMouse.y.toFixed(1),
+          "reduced: " + (reduced ? "true" : "false"),
+        ].join("\n"), vec2(hudCard.x + 18, hudCard.y + 60), {
+          size: 12,
+          fill: rgba(207, 225, 255, 0.78),
+          lineHeight: 1.25,
+          baseline: "top",
+          font,
+        });
+
+        draw.text("ドラッグ: pan / ホイール: zoom / クリック: burst", vec2(size.width - 24, 24), {
+          size: 13,
+          fill: rgba(215, 234, 255, 0.62),
+          align: "right",
+          baseline: "top",
+          font,
+        });
+
+        draw.text(
+          "pauseWhenHidden / pauseWhenOffscreen / respectReducedMotion が on。tab を隠す / scroll で画面外 / OS の「動きを減らす」で止まる。",
+          vec2(centerOf(rect(0, 0, size.width, size.height)).x, size.height - 34),
+          {
+            size: 13,
+            fill: rgba(215, 234, 255, 0.5),
+            align: "center",
+            baseline: "middle",
+            font,
+          },
+        );
+      };
+
+      const addBurst = (pos) => {
+        // click の burst。ring と sparkle を同じ effect にまとめます。
+        effects.add((t, { draw }) => {
+          const progress = t / 0.9;
+          if (progress >= 1) {
+            return false;
+          }
+
+          const eased = easeOutCubic(progress);
+          const alpha = 1 - progress;
+
+          draw.circle(pos, 14 + eased * 58, {
+            stroke: rgba(131, 219, 255, alpha * 0.8),
+            width: 2 + alpha * 2,
+          });
+
+          for (let i = 0; i < 5; i += 1) {
+            const angle = Math.PI * 2 * i / 5 - Math.PI / 2;
+            const distance = 12 + eased * (42 + i * 5);
+            const p = vec2(pos.x + Math.cos(angle) * distance, pos.y + Math.sin(angle) * distance);
+            draw.emoji("\u{2728}", p, {
+              size: 20 - eased * 8,
+              alpha,
+            });
+          }
+
+          return true;
+        });
+      };
+
+      renderNebula();
 
       canvas.addEventListener("wheel", (event) => {
         event.preventDefault();
@@ -121,260 +384,40 @@
         camera.zoomAt(mouse, event.deltaY < 0 ? 1.1 : 0.9, latestSize);
       }, { passive: false });
 
-      const drawWorldGrid = (draw) => {
-        for (let x = -720; x <= 720; x += 80) {
-          draw.line(vec2(x, -520), vec2(x, 520), {
-            stroke: x === 0 ? rgba(255, 255, 255, 0.2) : rgba(255, 255, 255, 0.055),
-            width: x === 0 ? 2 : 1,
-          });
-        }
-
-        for (let y = -520; y <= 520; y += 80) {
-          draw.line(vec2(-720, y), vec2(720, y), {
-            stroke: y === 0 ? rgba(255, 255, 255, 0.2) : rgba(255, 255, 255, 0.055),
-            width: y === 0 ? 2 : 1,
-          });
-        }
-      };
-
-      const drawHud = (draw, size, frame, deltaTime, mouse, worldMouse) => {
-        draw.roundRect(rect(18, 18, 330, 146), 12, {
-          fill: rgba(15, 17, 23, 0.72),
-          stroke: rgba(255, 255, 255, 0.16),
-          width: 1,
-        });
-
-        draw.text("CanvasKit v0.4 showcase", vec2(36, 42), {
-          size: 20,
-          fill: Palette.White,
-          font,
-        });
-
-        draw.text(
-          `frame: ${frame}\ndelta: ${(deltaTime * 1000).toFixed(1)} ms\nmouse: ${mouse.position.x.toFixed(0)}, ${mouse.position.y.toFixed(0)}\nworld: ${worldMouse.x.toFixed(1)}, ${worldMouse.y.toFixed(1)}\nzoom: ${camera.zoom.toFixed(2)}\nreduced: ${reduced}`,
-          vec2(36, 68),
-          {
-            size: 12,
-            lineHeight: 1.18,
-            fill: "#ffffffaa",
-            font,
-          },
-        );
-
-        draw.text("drag background: pan / wheel: zoom", vec2(size.width - 28, 32), {
-          size: 13,
-          fill: "#ffffff80",
-          align: "right",
-          font,
-        });
-      };
-
-      const app = createCanvasApp("#canvas", (context) => {
+      const app = createCanvasApp(canvas, (context) => {
         const { draw, time, deltaTime, frame, size, input } = context;
         const mouse = input.mouse;
+        const motionTime = reduced ? 0 : time;
+        const hudHovered = contains(hudCard, mouse.position);
+
         latestSize = size;
 
-        const card = rect(size.width / 2 - 250, size.height / 2 - 112, 500, 194);
-        const hovered = contains(card, mouse.position);
-
-        if (mouse.left.pressed && !hovered) {
+        if (mouse.left.pressed && !hudHovered) {
           camera.moveBy(vec2(
             -mouse.delta.x / camera.zoom,
             -mouse.delta.y / camera.zoom,
           ));
         }
 
-        const motionTime = reduced ? 0 : time;
-        const worldMouse = camera.screenToWorld(mouse.position, size);
-        const hoverMix = reduced ? 0.5 : pingPong(time, 1);
-
-        if (mouse.left.down && hovered && !reduced) {
-          const pos = { ...mouse.position };
-
-          effects.add((age, { draw }) => {
-            const progress = age / 0.9;
-            if (progress >= 1) {
-              return false;
-            }
-
-            const eased = easeOutCubic(progress);
-            draw.circle(pos, 10 + eased * 48, {
-              stroke: Color.rgb(255, 255, 255).withAlpha(1 - progress).toString(),
-              width: 3,
-            });
-
-            return true;
-          });
+        if (mouse.left.down && !hudHovered) {
+          addBurst({ ...mouse.position });
         }
 
         draw.clear("#0f1117");
 
         draw.withCamera(camera, size, () => {
-          drawWorldGrid(draw);
-          draw.shape(circle(vec2(430, -240), 42), {
-            fill: Color.rgb(122, 162, 255).withAlpha(0.14).toString(),
-            stroke: Palette.Skyblue,
-            width: 2,
-          });
-          draw.shape(line(vec2(270, -330), vec2(560, -178)), {
-            stroke: hsla(210, 80, 70, 0.24),
-            width: 2,
-            dash: [10, 8],
-          });
-          draw.circle(worldMouse, 8, {
-            fill: Palette.Orange,
-            alpha: 0.9,
-          });
+          drawStars(draw, motionTime);
+          drawGrid(draw);
+          drawNebulaStamps(draw);
+          drawSun(draw, motionTime);
+          drawOrbits(draw, motionTime);
+          drawComet(draw, motionTime);
+          drawConstellation(draw, motionTime);
+          drawWorldMouse(draw, mouse, size);
         });
 
+        drawHud(draw, mouse, size, deltaTime, frame, hudHovered);
         effects.update(deltaTime, context);
-
-        const baseColor = Color.rgb(35, 47, 68);
-        const hotColor = Color.rgb(80, 160, 255);
-        const cardColor = Color.lerp(baseColor, hotColor, hovered ? 0.42 + hoverMix * 0.18 : 0.12);
-        const cardCenter = centerOf(card);
-
-        draw.withState({
-          shadowBlur: hovered ? 26 : 12,
-          shadowColor: cardColor.withAlpha(0.58).toString(),
-        }, () => {
-          draw.roundRect(card, 18, {
-            fill: cardColor.withAlpha(0.92).toString(),
-            stroke: hovered ? Palette.White : cardColor.toString(),
-            width: hovered ? 3 : 2,
-          });
-        });
-
-        draw.text("geometry value\n+ Color.lerp()\n+ multiline text", vec2(card.x + 28, card.y + 34), {
-          size: 24,
-          lineHeight: 1.16,
-          fill: Palette.White,
-          font,
-        });
-
-        draw.rect(rect(card.x + 28, card.y + 142, 90, 22), {
-          fill: rgb(80, 160, 255),
-          alpha: 0.58,
-        });
-        draw.roundRect(rect(card.x + 132, card.y + 136, 112, 34), 10, {
-          fill: hsl((motionTime * 80) % 360, 74, 58),
-          stroke: hsla((motionTime * 80 + 180) % 360, 82, 72, 0.7),
-          width: 2,
-        });
-        draw.circle(vec2(card.x + 296, card.y + 153), 18, {
-          fill: rgba(255, 255, 255, 0.22),
-          stroke: Palette.White,
-          width: 1,
-        });
-
-        const sourceCircle = circle(vec2(card.x + 344, card.y + 152), 16);
-        const shiftedCircle = moved(sourceCircle, vec2(34, 0));
-        draw.shape(sourceCircle, {
-          fill: Color.rgb(80, 250, 123).withAlpha(0.42).toString(),
-          stroke: Palette.Seagreen,
-          width: 2,
-        });
-        draw.shape(shiftedCircle, {
-          stroke: Palette.Seagreen,
-          width: 2,
-          dash: [5, 5],
-        });
-
-        draw.text("card hover: contains(rect, mouse)", vec2(card.x + card.w - 28, card.y + 38), {
-          size: 13,
-          fill: "#ffffff99",
-          align: "right",
-          font,
-        });
-
-        const left = size.width * 0.22;
-        const lower = size.height * 0.74;
-        draw.text("shape helpers", vec2(left, lower - 118), {
-          size: 16,
-          fill: "#ffffffcc",
-          align: "center",
-          font,
-        });
-        draw.polygon([
-          vec2(left - 106, lower - 18),
-          vec2(left - 64, lower - 76),
-          vec2(left + 2, lower - 52),
-          vec2(left + 18, lower + 16),
-          vec2(left - 84, lower + 28),
-        ], {
-          fill: Color.rgb(255, 184, 108).withAlpha(0.24).toString(),
-          stroke: Palette.Orange,
-          width: 2,
-        });
-        draw.polyline([
-          vec2(left + 42, lower + 22),
-          vec2(left + 82, lower - 28),
-          vec2(left + 126, lower + 8),
-          vec2(left + 168, lower - 62),
-          vec2(left + 208, lower - 14),
-        ], {
-          stroke: hsl((motionTime * 70) % 360, 78, 66),
-          width: 4,
-          lineCap: "round",
-          lineJoin: "round",
-        });
-        draw.arc(vec2(left + 214, lower + 30), 44, deg(-160), deg(40 + Math.sin(motionTime * 2) * 70), {
-          stroke: Palette.Hotpink,
-          width: 6,
-          lineCap: "round",
-        });
-
-        const right = size.width * 0.78;
-        const spin = reduced ? 0 : motionTime * 0.8;
-        draw.text("transform / state / image", vec2(right, lower - 118), {
-          size: 16,
-          fill: "#ffffffcc",
-          align: "center",
-          font,
-        });
-        draw.withTransform({
-          translate: vec2(right - 86, lower - 18),
-          rotate: spin,
-          scale: 1 + Math.sin(motionTime * 2) * 0.08,
-        }, () => {
-          draw.withState({
-            alpha: 0.9,
-            blend: "lighter",
-            shadowBlur: 16,
-            shadowColor: "#7aa2ff",
-            lineCap: "round",
-            lineJoin: "round",
-          }, () => {
-            draw.line(vec2(-58, 0), vec2(58, 0), {
-              stroke: rgba(122, 162, 255, 0.82),
-              width: 6,
-            });
-            draw.circle(vec2(0, 0), 34, {
-              stroke: Palette.White,
-              width: 2,
-            });
-            draw.emoji("\u{1F680}", vec2(62, 0), {
-              size: 34,
-            });
-          });
-        });
-
-        draw.image(badge.canvas, vec2(right + 74, lower - 28), {
-          width: badge.width,
-          height: badge.height,
-          scale: 0.72,
-          rotation: spin * 0.35,
-          alpha: 0.94,
-        });
-        draw.image(badge.canvas, vec2(right + 158, lower + 52), {
-          width: badge.width,
-          height: badge.height,
-          scale: 0.42,
-          mirrored: true,
-          alpha: 0.48,
-        });
-
-        drawHud(draw, size, frame, deltaTime, mouse, worldMouse);
       }, {
         autoStart: true,
         maxDpr: 2,
@@ -385,7 +428,7 @@
 
       window.addEventListener("pagehide", () => {
         app.destroy();
-        badge.destroy();
+        nebula.destroy();
       }, { once: true });
     </script>
   </body>
