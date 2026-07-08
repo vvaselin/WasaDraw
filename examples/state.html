@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>canvaskit state example</title>
+    <title>wasadraw state example</title>
     <style>
       html,
       body {
@@ -161,7 +161,7 @@
         });
 
         label(draw, "filter: blur / hue-rotate", vec2(80, 328));
-        // filter の対応はブラウザ次第です。CanvasKit 側の fallback はありません。
+        // filter の対応はブラウザ次第です。WasaDraw 側の fallback はありません。
         draw.withState({ filter: "blur(6px)" }, () => {
           draw.roundRect(rect(98, 374, 130, 76), 18, {
             fill: "#7aa2ff",
