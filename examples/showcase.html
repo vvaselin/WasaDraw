@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>wasadraw showcase</title>
+    <title>wasadraw v0.7 showcase</title>
     <style>
       html,
       body {
@@ -14,7 +14,7 @@
       body {
         overflow: auto;
         overflow-x: hidden;
-        background: #0f1117;
+        background: #0b0e16;
         color: #d9e7ff;
         font-family: system-ui, sans-serif;
       }
@@ -24,11 +24,7 @@
         width: 100vw;
         height: 100vh;
         touch-action: none;
-        cursor: grab;
-      }
-
-      #canvas:active {
-        cursor: grabbing;
+        cursor: crosshair;
       }
 
       .spacer {
@@ -37,7 +33,6 @@
         place-items: center;
         color: rgb(217 231 255 / 0.34);
         font-size: 13px;
-        letter-spacing: 0;
       }
     </style>
   </head>
@@ -48,11 +43,8 @@
     <script type="module">
       import {
         createCanvasApp,
-        createCamera2D,
         createEffectManager,
-        createRenderTarget,
         Palette,
-        Color,
         rgb,
         rgba,
         hsl,
@@ -60,363 +52,468 @@
         vec2,
         rect,
         circle,
-        line,
-        centerOf,
         contains,
-        deg,
+        // v0.5〜v0.7: グラデーション
+        verticalGradient,
+        horizontalGradient,
+        diagonalGradient,
+        radialGradient,
+        linearGradient,
+        // v0.5〜v0.7: 便利図形
+        star,
+        nStar,
+        hexagon,
+        plus,
+        cross,
+        stairs,
+        astroid,
+        rhombus,
+        // v0.5〜v0.7: 曲線
+        bezier3,
+        // v0.5〜v0.7: アニメーション & イージング
+        createAnimation,
+        easeOutBounce,
+        easeInOutExpo,
+        easeOutBack,
+        easeOutElastic,
         easeOutCubic,
+        // geometry ヘルパ
+        rotatedAt,
+        getPointByAngle,
+        // math ヘルパ
+        pingPong,
       } from "../dist/index.js";
 
       const canvas = document.querySelector("#canvas");
       const font = "system-ui, sans-serif";
-      const camera = createCamera2D({ center: vec2(0, 0), zoom: 0.9 });
       const effects = createEffectManager();
       const reducedQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-      const nebula = createRenderTarget(220, 220, { maxDpr: 2 });
-
-      const hudCard = rect(20, 20, 340, 168);
-      let latestSize = null;
       let reduced = reducedQuery.matches;
-
-      // 表示用です。library 側は respectReducedMotion で loop が止まり、最後の1フレームが残ります。
       reducedQuery.addEventListener("change", (event) => {
         reduced = event.matches;
       });
 
-      const mulberry32 = (seed) => () => {
-        let t = seed += 0x6d2b79f5;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
+      // ---- レイアウト（3 列 x 2 行のアイランド）----
+      const PANEL_W = 360;
+      const PANEL_H = 300;
+      const GAP = 26;
 
-      const random = mulberry32(202604);
-
-      // 再生ごとに同じ空にするため、星は起動時に一度だけ作ります。
-      const stars = Array.from({ length: 90 }, () => ({
-        pos: vec2(random() * 1800 - 900, random() * 1200 - 600),
-        r: random() * 1.2 + 0.6,
-        tw: random() * Math.PI * 2,
-      }));
-
-      const nebulaStamps = [
-        { pos: vec2(-560, -300), alpha: 0.62, rotation: deg(-12) },
-        { pos: vec2(520, -260), alpha: 0.54, rotation: deg(18) },
-        { pos: vec2(-420, 340), alpha: 0.78, rotation: deg(34) },
+      // 各アイランドの定義。hue から枠色・発光色を生成する。
+      const panels = [
+        { key: "gradient", title: "Gradients", hue: 280 },
+        { key: "shapes", title: "Shapes", hue: 150 },
+        { key: "curves", title: "Bezier / Spline", hue: 200 },
+        { key: "arrows", title: "Arrow / Frame", hue: 38 },
+        { key: "fancy", title: "Heart / Squircle / Balloon / Shadow", hue: 340 },
+        { key: "motion", title: "Animation / Skew / Geometry", hue: 90 },
       ];
 
-      const constellation = [
-        vec2(420, 260),
-        vec2(484, 318),
-        vec2(552, 288),
-        vec2(604, 352),
-        vec2(680, 374),
-        vec2(646, 438),
+      // レイアウト矩形を毎フレーム安価に計算する（オブジェクトは 6 個だけ）。
+      const layout = (size) => {
+        const totalW = PANEL_W * 3 + GAP * 2;
+        const totalH = PANEL_H * 2 + GAP;
+        const originX = size.center.x - totalW / 2;
+        const originY = size.center.y - totalH / 2 + 16;
+        return panels.map((panel, i) => {
+          const col = i % 3;
+          const row = Math.floor(i / 3);
+          const r = rect(
+            originX + col * (PANEL_W + GAP),
+            originY + row * (PANEL_H + GAP),
+            PANEL_W,
+            PANEL_H,
+          );
+          return { ...panel, rect: r };
+        });
+      };
+
+      // ---- フレームループ外で作る頂点テンプレート（原点中心）----
+      // Shapes パネル: 8 種の便利図形を原点中心で用意し、slot へ translate して描く。
+      const shapeR = 30;
+      const shapeTemplates = [
+        { pts: star(vec2(0, 0), shapeR), fill: Palette.Gold, spin: 0.6 },
+        { pts: nStar(vec2(0, 0), 7, shapeR, shapeR * 0.45), fill: Palette.Skyblue, spin: -0.5 },
+        { pts: hexagon(vec2(0, 0), shapeR), fill: Palette.Seagreen, spin: 0.4 },
+        { pts: rhombus(vec2(0, 0), shapeR * 1.6, shapeR * 2), fill: Palette.Violet, spin: -0.7 },
+        { pts: plus(vec2(0, 0), shapeR, shapeR * 0.62), fill: Palette.Tomato, spin: 0.5 },
+        { pts: cross(vec2(0, 0), shapeR, shapeR * 0.55), fill: Palette.Teal, spin: -0.4 },
+        { pts: astroid(vec2(0, 0), shapeR * 1.05), fill: Palette.Salmon, spin: 0.35 },
+        // stairs は左下基準なので、bbox 中心が概ね原点へ来るよう base をずらす。
+        { pts: stairs(vec2(-shapeR, shapeR * 0.7), shapeR * 1.9, shapeR * 1.5, 4), fill: Palette.Crimson, spin: 0 },
       ];
 
-      const renderNebula = () => {
-        // RenderTarget に一度だけ描いて、world に複数 stamp する cache です。
-        nebula.clear();
-        nebula.render(({ draw, size }) => {
-          draw.clear(rgba(0, 0, 0, 0));
+      // Curves パネル: 頂点配列は一度だけ確保し、毎フレーム y を in-place 更新する。
+      const waveCount = 7;
+      const wavePts = Array.from({ length: waveCount }, (_, i) => vec2(-130 + (260 / (waveCount - 1)) * i, 0));
+      const bezierPts = { p0: vec2(-120, 30), p1: vec2(-40, 0), p2: vec2(40, 0), p3: vec2(120, 30) };
+      const bezierCurve = bezier3(bezierPts.p0, bezierPts.p1, bezierPts.p2, bezierPts.p3);
+      const blobCount = 10;
+      const blobPts = Array.from({ length: blobCount }, () => vec2(0, 0));
+      const waveGrad = linearGradient(vec2(0, 0), vec2(1, 0), [Palette.Skyblue, Palette.Violet]);
+      const blobGrad = radialGradient(hsla(200, 90, 72, 0.95), hsla(280, 80, 45, 0.35));
 
-          draw.withState({
-            blend: "lighter",
-            shadowBlur: 30,
-            shadowColor: hsla(264, 86, 62, 0.72),
-          }, () => {
-            draw.circle(vec2(size.center.x - 28, size.center.y + 10), 58, {
-              fill: hsla(264, 86, 58, 0.18),
-            });
-            draw.circle(vec2(size.center.x + 22, size.center.y - 18), 48, {
-              fill: hsla(205, 88, 62, 0.2),
-            });
-            draw.circle(vec2(size.center.x + 8, size.center.y + 34), 38, {
-              fill: hsla(318, 72, 62, 0.15),
-            });
-            draw.circle(size.center, 72, {
-              fill: hsla(226, 76, 55, 0.1),
-            });
-          });
+      // グラデーションのテンプレート（bbox 正規化なので使い回せる）。
+      const gradSwatches = [
+        { grad: verticalGradient(Palette.Skyblue, Palette.Violet), label: "vertical" },
+        { grad: horizontalGradient(Palette.Gold, Palette.Tomato), label: "horizontal" },
+        { grad: diagonalGradient(Palette.Seagreen, Palette.Skyblue), label: "diagonal" },
+        { grad: radialGradient("#fff7e6", Palette.Crimson), label: "radial" },
+        { grad: linearGradient(vec2(0, 0), vec2(1, 1), ["#ff5f6d", "#ffc371", "#47cf73", "#4a9fff"]), label: "linear x4" },
+      ];
+      // 枠のグラデーション（stroke に Gradient を渡せる）。
+      const strokeGrad = linearGradient(vec2(0, 0), vec2(1, 0), [Palette.Gold, Palette.Crimson, Palette.Violet]);
 
-          for (let i = 0; i < 16; i += 1) {
-            draw.circle(vec2(random() * 180 + 20, random() * 180 + 20), random() * 1.2 + 0.5, {
-              fill: rgba(240, 248, 255, random() * 0.42 + 0.22),
-            });
-          }
-        });
-      };
+      // Motion パネル: 複数トラック + 複数イージングのループアニメーション。
+      const ballAnim = createAnimation(
+        {
+          // 跳ねる縦移動（easeOutBounce）
+          y: [
+            { time: 0, value: -46 },
+            { time: 1.1, value: 40, ease: easeOutBounce },
+            { time: 2.4, value: -46, ease: easeInOutExpo },
+          ],
+          // 横移動（easeInOutExpo）
+          x: [
+            { time: 0, value: -70 },
+            { time: 1.1, value: 70, ease: easeInOutExpo },
+            { time: 2.4, value: -70, ease: easeInOutExpo },
+          ],
+          // ポップするスケール（easeOutBack）
+          pop: [
+            { time: 0, value: 0.5 },
+            { time: 0.5, value: 1.2, ease: easeOutBack },
+            { time: 1.1, value: 1, ease: easeOutBack },
+            { time: 2.4, value: 0.5, ease: easeInOutExpo },
+          ],
+        },
+        { loop: 2.4 },
+      );
 
-      const drawStars = (draw, motionTime) => {
-        // 低速の twinkle。reduced では中間の明るさで止めます。
-        for (const star of stars) {
-          const alpha = reduced ? 0.52 : 0.25 + ((Math.sin(motionTime * 1.5 + star.tw) + 1) / 2) * 0.55;
-          draw.circle(star.pos, star.r, { fill: rgba(238, 246, 255, alpha) });
-        }
-      };
-
-      const drawGrid = (draw) => {
-        for (let x = -960; x <= 960; x += 120) {
-          draw.shape(line(vec2(x, -720), vec2(x, 720)), {
-            stroke: rgba(150, 190, 255, x === 0 ? 0.12 : 0.04),
-            width: x === 0 ? 1.4 : 1,
-          });
-        }
-
-        for (let y = -720; y <= 720; y += 120) {
-          draw.line(vec2(-960, y), vec2(960, y), {
-            stroke: rgba(150, 190, 255, y === 0 ? 0.12 : 0.04),
-            width: y === 0 ? 1.4 : 1,
-          });
-        }
-      };
-
-      const drawNebulaStamps = (draw) => {
-        for (const stamp of nebulaStamps) {
-          draw.image(nebula.canvas, stamp.pos, {
-            width: nebula.width,
-            height: nebula.height,
-            alpha: stamp.alpha,
-            rotation: stamp.rotation,
-          });
-        }
-      };
-
-      const drawSun = (draw, motionTime) => {
-        // scene の中心。glow は lighter と shadow で作ります。
-        const hue = 38 + Math.sin(motionTime * 0.4) * 6;
-        draw.withState({
-          blend: "lighter",
-          shadowBlur: 40,
-          shadowColor: hsla(hue, 92, 62, 0.68),
-        }, () => {
-          draw.circle(vec2(0, 0), 58, { fill: hsl(hue, 92, 58) });
-          draw.shape(circle(vec2(0, 0), 88), {
-            stroke: hsla(hue, 92, 66, 0.16),
-            width: 2,
-          });
-          draw.shape(circle(vec2(0, 0), 126), {
-            stroke: hsla(hue, 92, 70, 0.08),
-            width: 1.5,
-          });
-        });
-      };
-
-      const drawOrbits = (draw, motionTime) => {
-        // transform の nest が見えるように、惑星と月を段階的に回します。
-        draw.shape(circle(vec2(0, 0), 190), {
-          stroke: rgba(122, 162, 255, 0.12),
-          width: 1.5,
-        });
-        draw.shape(circle(vec2(0, 0), 330), {
-          stroke: rgba(70, 214, 150, 0.12),
-          width: 1.5,
-        });
-
-        draw.withTransform({ rotate: motionTime * 0.55 }, () => {
-          const planet = vec2(190, 0);
-          draw.circle(planet, 22, { fill: Color.rgb(122, 162, 255).toString() });
-          draw.shape(circle(planet, 31), {
-            stroke: rgba(122, 162, 255, 0.18),
-            width: 1.2,
-          });
-
-          draw.withTransform({ translate: planet, rotate: motionTime * 2.2 }, () => {
-            draw.emoji("\u{1F6F0}\u{FE0F}", vec2(44, 0), { size: 26 });
-          });
-        });
-
-        draw.withTransform({ rotate: motionTime * -0.34 }, () => {
-          const planet = vec2(330, 0);
-          draw.circle(planet, 16, {
-            fill: Color.rgb(46, 139, 87).withAlpha(0.92).toString(),
-            stroke: Palette.Seagreen,
-            width: 1.2,
-          });
-          draw.withTransform({ translate: planet, rotate: motionTime * 1.8 }, () => {
-            draw.circle(vec2(34, 0), 5, { fill: rgba(220, 255, 236, 0.88) });
-          });
-        });
-      };
-
-      const drawComet = (draw, motionTime) => {
-        const a = motionTime * 0.3;
-        const pos = vec2(Math.cos(a) * 520, Math.sin(a) * 300 - 40);
-        const prev = vec2(Math.cos(a - 0.26) * 520, Math.sin(a - 0.26) * 300 - 40);
-        const prev2 = vec2(Math.cos(a - 0.46) * 520, Math.sin(a - 0.46) * 300 - 40);
-
-        draw.withState({ blend: "lighter", lineCap: "round", lineJoin: "round" }, () => {
-          draw.polyline([prev2, prev, pos], {
-            stroke: rgba(116, 214, 255, 0.24),
-            width: 3,
-            dash: [10, 12],
-          });
-          draw.emoji("\u{2604}\u{FE0F}", pos, { size: 30 });
-        });
-      };
-
-      const drawConstellation = (draw, motionTime) => {
-        // 右上は静かな constellation。惑星と重ならない位置に置きます。
-        draw.polyline(constellation, {
-          stroke: rgba(172, 219, 255, 0.35),
-          width: 1.4,
-          lineCap: "round",
-          lineJoin: "round",
-        });
-
-        for (let i = 0; i < constellation.length; i += 1) {
-          const p = constellation[i];
-          const focused = i === 3;
-          draw.circle(p, focused ? 5 : 3, {
-            fill: focused ? hsl(188 + Math.sin(motionTime) * 26, 84, 64) : rgba(222, 242, 255, 0.74),
-          });
-        }
-      };
-
-      const drawWorldMouse = (draw, mouse, size) => {
-        const worldMouse = camera.screenToWorld(mouse.position, size);
-        draw.circle(worldMouse, 7, { fill: rgba(255, 154, 72, 0.18) });
-        draw.circle(worldMouse, 3, { fill: rgba(255, 154, 72, 0.88) });
-      };
-
-      const drawHud = (draw, mouse, size, deltaTime, frame, hovered) => {
-        // HUD は screen space。world の camera 変換の外で描きます。
-        const base = Color.rgb(12, 21, 38);
-        const accent = Color.rgb(96, 176, 255);
-        const fill = Color.lerp(base, accent, hovered ? 0.35 : 0.1).withAlpha(0.9).toString();
-        const worldMouse = camera.screenToWorld(mouse.position, size);
-
-        draw.withState({
-          shadowBlur: hovered ? 24 : 10,
-          shadowColor: rgba(72, 172, 255, 0.35),
-        }, () => {
-          draw.rect(hudCard, {
-            fill,
-            stroke: hovered ? rgba(127, 205, 255, 0.74) : rgba(127, 205, 255, 0.28),
-            width: 1,
-          });
-        });
-
-        draw.text("WasaDraw v0.4 showcase", vec2(hudCard.x + 18, hudCard.y + 25), {
-          size: 20,
-          fill: rgb(233, 244, 255),
-          baseline: "top",
-          font,
-        });
-
-        // multiline text は \n と lineHeight で整えます。
-        draw.text([
-          "frame: " + frame.toString().padStart(5, "0"),
-          "delta: " + (deltaTime * 1000).toFixed(1) + " ms",
-          "zoom: " + camera.zoom.toFixed(2),
-          "world: " + worldMouse.x.toFixed(1) + ", " + worldMouse.y.toFixed(1),
-          "reduced: " + (reduced ? "true" : "false"),
-        ].join("\n"), vec2(hudCard.x + 18, hudCard.y + 60), {
-          size: 12,
-          fill: rgba(207, 225, 255, 0.78),
-          lineHeight: 1.25,
-          baseline: "top",
-          font,
-        });
-
-        draw.text("ドラッグ: pan / ホイール: zoom / クリック: burst", vec2(size.width - 24, 24), {
-          size: 13,
-          fill: rgba(215, 234, 255, 0.62),
-          align: "right",
-          baseline: "top",
-          font,
-        });
-
-        draw.text(
-          "pauseWhenHidden / pauseWhenOffscreen / respectReducedMotion が on。tab を隠す / scroll で画面外 / OS の「動きを減らす」で止まる。",
-          vec2(centerOf(rect(0, 0, size.width, size.height)).x, size.height - 34),
-          {
-            size: 13,
-            fill: rgba(215, 234, 255, 0.5),
-            align: "center",
-            baseline: "middle",
-            font,
-          },
-        );
-      };
-
+      // ---- クリック時の burst エフェクト（screen space）----
       const addBurst = (pos) => {
-        // click の burst。ring と sparkle を同じ effect にまとめます。
         effects.add((t, { draw }) => {
-          const progress = t / 0.9;
+          const progress = t / 0.8;
           if (progress >= 1) {
             return false;
           }
-
           const eased = easeOutCubic(progress);
           const alpha = 1 - progress;
-
-          draw.circle(pos, 14 + eased * 58, {
-            stroke: rgba(131, 219, 255, alpha * 0.8),
-            width: 2 + alpha * 2,
-          });
-
-          for (let i = 0; i < 5; i += 1) {
-            const angle = Math.PI * 2 * i / 5 - Math.PI / 2;
-            const distance = 12 + eased * (42 + i * 5);
-            const p = vec2(pos.x + Math.cos(angle) * distance, pos.y + Math.sin(angle) * distance);
-            draw.emoji("\u{2728}", p, {
-              size: 20 - eased * 8,
-              alpha,
+          // withState の blend: lighter で加算合成の輝きを出す（v0.4 の添え物）。
+          draw.withState({ blend: "lighter" }, () => {
+            draw.circle(pos, 12 + eased * 52, {
+              stroke: rgba(131, 219, 255, alpha * 0.85),
+              width: 2 + alpha * 2,
             });
-          }
-
+            for (let i = 0; i < 5; i += 1) {
+              const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+              const d = 10 + eased * (38 + i * 4);
+              const p = vec2(pos.x + Math.cos(angle) * d, pos.y + Math.sin(angle) * d);
+              draw.emoji("✨", p, { size: 18 - eased * 7, alpha });
+            }
+          });
           return true;
         });
       };
 
-      renderNebula();
+      // ---- パネルの外枠と見出し ----
+      const drawPanelChrome = (draw, r, title, hue, hovered) => {
+        const accent = hsl(hue, 80, 66);
+        draw.withState({
+          shadowBlur: hovered ? 26 : 12,
+          shadowColor: hovered ? hsla(hue, 80, 60, 0.5) : rgba(20, 40, 80, 0.6),
+        }, () => {
+          draw.roundRect(r, 16, {
+            fill: verticalGradient("#141b2c", "#0d1220"),
+            stroke: hovered ? accent : rgba(120, 160, 220, 0.24),
+            width: hovered ? 1.8 : 1,
+          });
+        });
+        draw.text(title, vec2(r.x + 18, r.y + 20), {
+          size: 13,
+          fill: rgb(226, 238, 255),
+          baseline: "top",
+          font,
+        });
+        // 見出し下のアクセント線。
+        draw.line(vec2(r.x + 18, r.y + 40), vec2(r.x + 18 + 42, r.y + 40), {
+          stroke: accent,
+          width: 2,
+          lineCap: "round",
+        });
+      };
 
-      canvas.addEventListener("wheel", (event) => {
-        event.preventDefault();
+      // 各パネルの content 中心を返す。
+      const contentCenter = (r) => vec2(r.x + r.w / 2, r.y + 40 + (r.h - 52) / 2);
 
-        if (latestSize === null) {
-          return;
+      // ---- 各アイランドの描画 ----
+      const drawGradients = (draw, r) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + 60;
+        // 5 種のグラデーション塗り（squircle スウォッチ）を 3 列で並べる。
+        const cols = 3;
+        const cellW = 96;
+        const cellH = 78;
+        gradSwatches.forEach((s, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const p = vec2(cx + (col - 1) * cellW, cy + row * cellH + 20);
+          draw.squircle(p, 26, { exponent: 4 }, { fill: s.grad });
+          draw.text(s.label, vec2(p.x, p.y + 36), {
+            size: 9,
+            fill: rgba(210, 228, 255, 0.7),
+            align: "center",
+            baseline: "middle",
+            font,
+          });
+        });
+        // 6 番目のセル: グラデーションを stroke に使い、回転させる。
+        const p = vec2(cx + cellW, cy + cellH + 20);
+        draw.withTransform({ translate: p, rotate: reduced ? 0 : performance.now() * 0.0008 }, () => {
+          draw.squircle(vec2(0, 0), 24, { exponent: 4 }, { stroke: strokeGrad, width: 5 });
+        });
+        draw.text("gradient stroke", vec2(p.x, p.y + 36), {
+          size: 9,
+          fill: rgba(210, 228, 255, 0.7),
+          align: "center",
+          baseline: "middle",
+          font,
+        });
+      };
+
+      const drawShapes = (draw, r, t) => {
+        const cx = r.x + r.w / 2;
+        const cy = r.y + 60;
+        const cols = 4;
+        const cellW = 82;
+        const cellH = 108;
+        shapeTemplates.forEach((s, i) => {
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+          const slot = vec2(cx + (col - 1.5) * cellW, cy + row * cellH + 34);
+          // 便利図形は draw.polygon で塗る。回転は withTransform に任せ、頂点は再生成しない。
+          draw.withTransform({ translate: slot, rotate: t * s.spin }, () => {
+            draw.polygon(s.pts, { fill: s.fill, stroke: rgba(255, 255, 255, 0.35), width: 1 });
+          });
+        });
+      };
+
+      const drawCurves = (draw, r, t) => {
+        const c = contentCenter(r);
+        // (1) 開いた spline のウェーブ。y だけ in-place 更新。
+        for (let i = 0; i < waveCount; i += 1) {
+          wavePts[i].y = c.y - 62 + Math.sin(t * 1.6 + i * 0.8) * 16;
+          wavePts[i].x = c.x - 130 + (260 / (waveCount - 1)) * i;
         }
+        draw.spline(wavePts, { tension: 0.5 }, { stroke: waveGrad, width: 3, lineCap: "round" });
+        draw.text("spline (open)", vec2(c.x, c.y - 92), {
+          size: 9, fill: rgba(210, 228, 255, 0.6), align: "center", baseline: "middle", font,
+        });
 
-        const bounds = canvas.getBoundingClientRect();
-        const mouse = vec2(event.clientX - bounds.left, event.clientY - bounds.top);
-        camera.zoomAt(mouse, event.deltaY < 0 ? 1.1 : 0.9, latestSize);
-      }, { passive: false });
+        // (2) 3 次ベジェ。制御点を上下に振る。
+        const bob = Math.sin(t * 1.8) * 34;
+        bezierPts.p0.x = c.x - 120; bezierPts.p0.y = c.y - 4;
+        bezierPts.p3.x = c.x + 120; bezierPts.p3.y = c.y - 4;
+        bezierPts.p1.x = c.x - 46; bezierPts.p1.y = c.y - bob;
+        bezierPts.p2.x = c.x + 46; bezierPts.p2.y = c.y + bob;
+        draw.bezier(bezierCurve, { stroke: Palette.Gold, width: 3, lineCap: "round" });
+
+        // (3) 閉じた spline を塗る（blob）。半径を波打たせる。
+        for (let i = 0; i < blobCount; i += 1) {
+          const a = (Math.PI * 2 * i) / blobCount;
+          const rr = 30 + Math.sin(t * 2 + i * 0.9) * 6;
+          blobPts[i].x = c.x + Math.cos(a) * rr;
+          blobPts[i].y = c.y + 66 + Math.sin(a) * rr;
+        }
+        draw.spline(blobPts, { closed: true, tension: 0.6 }, { fill: blobGrad, stroke: rgba(180, 220, 255, 0.5), width: 1 });
+      };
+
+      const drawArrows = (draw, r, mouse) => {
+        const c = contentCenter(r);
+        // frame の inner / outer 指定。内側 3px・外側 6px の二重太さ枠。
+        const box = rect(c.x - 70, c.y - 66, 140, 56);
+        draw.frame(box, { inner: 3, outer: 6 }, { stroke: strokeGrad });
+        draw.text("frame(inner:3, outer:6)", vec2(c.x, c.y - 38), {
+          size: 9, fill: rgba(210, 228, 255, 0.7), align: "center", baseline: "middle", font,
+        });
+
+        // マウスに向く矢印（インタラクション）。パネル内へ長さをクランプ。
+        let dx = mouse.position.x - c.x;
+        let dy = mouse.position.y - c.y + 24;
+        const len = Math.hypot(dx, dy) || 1;
+        const maxLen = 74;
+        const s = Math.min(1, maxLen / len);
+        const to = vec2(c.x + dx * s, c.y + 24 + dy * s);
+        draw.arrow(vec2(c.x, c.y + 24), to, { width: 6, headSize: vec2(18, 20) }, { fill: Palette.Skyblue });
+
+        // 両端矢印（幅を示す measure）。
+        draw.doubleHeadedArrow(
+          vec2(c.x - 70, c.y + 80),
+          vec2(c.x + 70, c.y + 80),
+          { width: 4, headSize: vec2(12, 14) },
+          { fill: Palette.Gold },
+        );
+        draw.text("arrow → mouse / doubleHeadedArrow", vec2(c.x, c.y + 98), {
+          size: 9, fill: rgba(210, 228, 255, 0.6), align: "center", baseline: "middle", font,
+        });
+      };
+
+      const drawFancy = (draw, r, t, mouse) => {
+        const c = contentCenter(r);
+        // shadow は影だけを描くので、本体を上に重ねる（正しい使い方）。
+        // camera/scale の外なので影のオフセットは崩れない。
+        const cardRect = rect(c.x - 66, c.y - 74, 60, 46);
+        draw.shadow(cardRect, { offset: vec2(0, 8), blur: 16, color: rgba(0, 0, 0, 0.55), radius: 14 });
+        draw.roundRect(cardRect, 14, { fill: diagonalGradient(Palette.Skyblue, Palette.Violet) });
+
+        // squircle。
+        draw.squircle(vec2(c.x + 40, c.y - 50), 26, { exponent: 4 }, {
+          fill: verticalGradient(Palette.Gold, Palette.Tomato),
+          stroke: rgba(255, 255, 255, 0.4), width: 1,
+        });
+
+        // heart。easeOutElastic ベースの pingPong で鼓動させる（glow 添え物付き）。
+        const beat = reduced ? 1 : 0.9 + easeOutElastic(pingPong(t, 1)) * 0.18;
+        draw.withState({ shadowBlur: 18, shadowColor: hsla(340, 90, 60, 0.6) }, () => {
+          draw.heart(vec2(c.x - 44, c.y + 34), 26 * beat, { fill: radialGradient("#ff9db4", Palette.Crimson) });
+        });
+
+        // rectBalloon はパネル内にマウスがあるときだけ尾を追随させる。
+        // 画面全域を追うと尾が他パネルを横切って邪魔になるため、外では既定位置へ。
+        const balloon = rect(c.x + 8, c.y + 8, 96, 52);
+        const target = contains(r, mouse.position)
+          ? mouse.position
+          : vec2(balloon.x - 16, balloon.y + balloon.h + 28);
+        draw.rectBalloon(balloon, target, {
+          fill: verticalGradient("#1c2740", "#141d33"),
+          stroke: rgba(150, 190, 255, 0.6), width: 1.2,
+        });
+        draw.text("balloon\n→ mouse", vec2(balloon.x + balloon.w / 2, balloon.y + balloon.h / 2), {
+          size: 10, fill: rgba(220, 235, 255, 0.85), align: "center", baseline: "middle", lineHeight: 1.2, font,
+        });
+      };
+
+      const drawMotion = (draw, r, t) => {
+        const r0 = r;
+        // 左側: 複数トラックのループアニメーション（emoji ボール）。
+        const animCenter = vec2(r0.x + 96, contentCenter(r0).y);
+        const a = ballAnim.at(t);
+        // 影っぽい床。
+        draw.ellipse(vec2(animCenter.x + a.x, animCenter.y + 54), 26 * a.pop, 7, { fill: rgba(0, 0, 0, 0.35) });
+        draw.emoji("\u{1F3D0}", vec2(animCenter.x + a.x, animCenter.y + a.y), { size: 34 * a.pop });
+        draw.text("createAnimation\nbounce / expo / back", vec2(animCenter.x, r0.y + r0.h - 28), {
+          size: 9, fill: rgba(210, 228, 255, 0.6), align: "center", baseline: "middle", lineHeight: 1.2, font,
+        });
+
+        // 右上: Transform2D の skew（せん断）を揺らす。
+        const skewCenter = vec2(r0.x + r0.w - 96, r0.y + 96);
+        const sk = reduced ? 0 : Math.sin(t * 1.4) * 0.45;
+        draw.withTransform({ translate: skewCenter, skew: vec2(sk, 0) }, () => {
+          draw.roundRect(rect(-40, -26, 80, 52), 8, {
+            fill: horizontalGradient(Palette.Seagreen, Palette.Skyblue),
+          });
+        });
+        draw.text("skew", vec2(skewCenter.x, skewCenter.y + 40), {
+          size: 9, fill: rgba(210, 228, 255, 0.7), align: "center", baseline: "middle", font,
+        });
+
+        // 右下: geometry の getPointByAngle（円周上の点）と rotatedAt（軸回転マーカー）。
+        const gCenter = vec2(r0.x + r0.w - 96, r0.y + r0.h - 78);
+        const orbit = circle(gCenter, 30);
+        draw.shape(orbit, { stroke: rgba(150, 190, 255, 0.25), width: 1 });
+        for (let i = 0; i < 8; i += 1) {
+          const p = getPointByAngle(orbit, (Math.PI * 2 * i) / 8 + t * 0.6);
+          draw.circle(p, 3, { fill: hsl(90 + i * 12, 70, 64) });
+        }
+        // rotatedAt: 固定点を中心周りに回す。
+        const marker = rotatedAt(vec2(gCenter.x + 30, gCenter.y), gCenter, t);
+        draw.line(gCenter, marker, { stroke: rgba(255, 220, 140, 0.7), width: 1.5, lineCap: "round" });
+        draw.circle(marker, 4, { fill: Palette.Gold });
+        draw.text("getPointByAngle / rotatedAt", vec2(gCenter.x, gCenter.y + 44), {
+          size: 8, fill: rgba(210, 228, 255, 0.55), align: "center", baseline: "middle", font,
+        });
+      };
+
+      // ---- 背景の星（起動時に一度だけ）----
+      const mulberry32 = (seed) => () => {
+        let x = (seed += 0x6d2b79f5);
+        x = Math.imul(x ^ (x >>> 15), x | 1);
+        x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+      };
+      const rnd = mulberry32(70801);
+      const stars = Array.from({ length: 70 }, () => ({
+        x: rnd(), y: rnd(), r: rnd() * 1.2 + 0.4, tw: rnd() * Math.PI * 2,
+      }));
+
+      const drawBackground = (draw, size, t) => {
+        for (const s of stars) {
+          const alpha = reduced ? 0.4 : 0.22 + ((Math.sin(t * 1.5 + s.tw) + 1) / 2) * 0.5;
+          draw.circle(vec2(s.x * size.width, s.y * size.height), s.r, { fill: rgba(238, 246, 255, alpha) });
+        }
+      };
+
+      const drawHud = (draw, size, deltaTime, frame, mouse) => {
+        const card = rect(20, 20, 264, 96);
+        draw.withState({ shadowBlur: 14, shadowColor: rgba(72, 172, 255, 0.3) }, () => {
+          draw.rect(card, {
+            fill: rgba(12, 21, 38, 0.9),
+            stroke: rgba(127, 205, 255, 0.35),
+            width: 1,
+          });
+        });
+        draw.text("WasaDraw v0.7 showcase", vec2(card.x + 16, card.y + 22), {
+          size: 17, fill: rgb(233, 244, 255), baseline: "middle", font,
+        });
+        draw.text([
+          "frame: " + frame.toString().padStart(5, "0"),
+          "delta: " + (deltaTime * 1000).toFixed(1) + " ms",
+          "reduced: " + (reduced ? "true" : "false"),
+        ].join("\n"), vec2(card.x + 16, card.y + 50), {
+          size: 11, fill: rgba(207, 225, 255, 0.78), lineHeight: 1.35, baseline: "top", font,
+        });
+
+        draw.text("各パネルにホバーで発光 / どこでもクリックで burst", vec2(size.width / 2, size.height - 30), {
+          size: 12, fill: rgba(215, 234, 255, 0.5), align: "center", baseline: "middle", font,
+        });
+      };
 
       const app = createCanvasApp(canvas, (context) => {
         const { draw, time, deltaTime, frame, size, input } = context;
         const mouse = input.mouse;
-        const motionTime = reduced ? 0 : time;
-        const hudHovered = contains(hudCard, mouse.position);
+        const t = reduced ? 0 : time;
 
-        latestSize = size;
+        const islands = layout(size);
+        const hoveredKey = (() => {
+          for (const island of islands) {
+            if (contains(island.rect, mouse.position)) {
+              return island.key;
+            }
+          }
+          return null;
+        })();
 
-        if (mouse.left.pressed && !hudHovered) {
-          camera.moveBy(vec2(
-            -mouse.delta.x / camera.zoom,
-            -mouse.delta.y / camera.zoom,
-          ));
-        }
-
-        if (mouse.left.down && !hudHovered) {
+        // クリックで burst（連打対策で down のみ）。
+        if (mouse.left.down) {
           addBurst({ ...mouse.position });
         }
 
-        draw.clear("#0f1117");
+        draw.clear("#0b0e16");
+        drawBackground(draw, size, t);
 
-        draw.withCamera(camera, size, () => {
-          drawStars(draw, motionTime);
-          drawGrid(draw);
-          drawNebulaStamps(draw);
-          drawSun(draw, motionTime);
-          drawOrbits(draw, motionTime);
-          drawComet(draw, motionTime);
-          drawConstellation(draw, motionTime);
-          drawWorldMouse(draw, mouse, size);
-        });
+        for (const island of islands) {
+          const hovered = island.key === hoveredKey;
+          drawPanelChrome(draw, island.rect, island.title, island.hue, hovered);
+          switch (island.key) {
+            case "gradient": drawGradients(draw, island.rect); break;
+            case "shapes": drawShapes(draw, island.rect, t); break;
+            case "curves": drawCurves(draw, island.rect, t); break;
+            case "arrows": drawArrows(draw, island.rect, mouse); break;
+            case "fancy": drawFancy(draw, island.rect, t, mouse); break;
+            case "motion": drawMotion(draw, island.rect, t); break;
+          }
+        }
 
-        drawHud(draw, mouse, size, deltaTime, frame, hudHovered);
+        drawHud(draw, size, deltaTime, frame, mouse);
         effects.update(deltaTime, context);
       }, {
         autoStart: true,
@@ -428,7 +525,6 @@
 
       window.addEventListener("pagehide", () => {
         app.destroy();
-        nebula.destroy();
       }, { once: true });
     </script>
   </body>

@@ -20,7 +20,7 @@
       canvas {
         display: block;
         width: 1200px;
-        height: 760px;
+        height: 1980px;
       }
     </style>
   </head>
@@ -38,6 +38,21 @@
         moved,
         centerOf,
         deg,
+        linearGradient,
+        verticalGradient,
+        horizontalGradient,
+        diagonalGradient,
+        radialGradient,
+        bezier2,
+        bezier3,
+        star,
+        nStar,
+        hexagon,
+        rhombus,
+        plus,
+        cross,
+        stairs,
+        astroid,
       } from "../dist/index.js";
 
       // Geometry value: kind 付きの plain object として保持できます。
@@ -243,6 +258,338 @@
           fill: Palette.Skyblue,
           stroke: Palette.White,
           width: 2,
+        });
+
+        // ---- v0.5: gradient / frame / arrow ----
+
+        draw.text("v0.5: gradient / frame / arrow", vec2(40, 800), {
+          size: 24,
+          fill: Palette.White,
+          font: "system-ui, sans-serif",
+        });
+
+        draw.text("ShapeStyle.fill / stroke には色文字列のほか Gradient を渡せます（bbox 正規化座標 0..1）", vec2(80, 836), {
+          size: 15,
+          fill: "#ffffff99",
+          font: "system-ui, sans-serif",
+        });
+
+        // グラデーションは図形の bounding box を基準に展開されます。
+        draw.rect(rect(80, 870, 140, 90), {
+          fill: verticalGradient("#7aa2ff", "#1c2740"),
+        });
+
+        draw.rect(rect(260, 870, 140, 90), {
+          fill: horizontalGradient("#ff79c6", "#7aa2ff"),
+        });
+
+        draw.rect(rect(440, 870, 140, 90), {
+          fill: diagonalGradient("#50fa7b", "#0f4432"),
+        });
+
+        // radialGradient は center（bbox 正規化）と radius を指定できます。
+        draw.circle(vec2(690, 915), 48, {
+          fill: radialGradient("#fff7c0", "#ff8c42", { center: vec2(0.4, 0.35) }),
+        });
+
+        // linearGradient は from / to を自由に指定できます（triangle にも使えます）。
+        draw.triangle(vec2(830, 866), vec2(780, 960), vec2(880, 960), {
+          fill: linearGradient(vec2(0, 0), vec2(0, 1), ["#ffb86c", "#b3541e"]),
+        });
+
+        // stroke にもグラデーションを指定できます。
+        draw.circle(vec2(1010, 915), 44, {
+          stroke: horizontalGradient("#50fa7b", "#7aa2ff"),
+          width: 8,
+        });
+
+        const gradientLabels = [
+          ["vertical", 150],
+          ["horizontal", 330],
+          ["diagonal", 510],
+          ["radial", 690],
+          ["linear (triangle)", 830],
+          ["gradient stroke", 1010],
+        ];
+        gradientLabels.forEach(([text, x]) => {
+          draw.text(text, vec2(x, 988), {
+            size: 13,
+            fill: "#ffffff88",
+            align: "center",
+            font: "system-ui, sans-serif",
+          });
+        });
+
+        // draw.frame() は既存パスの内側・外側へ枠を描きます。
+        draw.rect(rect(80, 1040, 140, 80), {
+          fill: "#171d2a",
+        });
+        draw.frame(rect(80, 1040, 140, 80), 6, {
+          fill: Palette.Skyblue,
+        });
+
+        // thickness は number のほか { inner, outer } でも指定できます。
+        draw.rect(rect(280, 1040, 140, 80), {
+          fill: "#171d2a",
+        });
+        draw.frame(rect(280, 1040, 140, 80), { inner: 2, outer: 8 }, {
+          fill: Palette.Orange,
+        });
+
+        draw.frame(circle(vec2(530, 1080), 40), { inner: 4, outer: 4 }, {
+          fill: verticalGradient("#ff79c6", "#7aa2ff"),
+        });
+
+        // draw.arrow() / draw.doubleHeadedArrow() は矢印全体を1つの polygon として描きます。
+        draw.arrow(vec2(640, 1120), vec2(790, 1046), {
+          width: 8,
+          headSize: vec2(24, 20),
+        }, {
+          fill: Palette.White,
+        });
+
+        draw.doubleHeadedArrow(vec2(850, 1080), vec2(1010, 1080), {
+          width: 10,
+        }, {
+          fill: horizontalGradient("#50fa7b", "#7aa2ff"),
+        });
+
+        // stroke だけの矢印（グラデーション stroke）も描けます。
+        draw.arrow(vec2(1050, 1124), vec2(1150, 1046), {
+          width: 6,
+        }, {
+          stroke: verticalGradient("#ffffff", "#50fa7b"),
+          width: 2,
+        });
+
+        const frameLabels = [
+          ["frame(6)", 150],
+          ["frame({inner, outer})", 350],
+          ["frame(circle)", 530],
+          ["arrow", 715],
+          ["doubleHeadedArrow", 930],
+          ["stroke", 1100],
+        ];
+        frameLabels.forEach(([text, x]) => {
+          draw.text(text, vec2(x, 1152), {
+            size: 13,
+            fill: "#ffffff88",
+            align: "center",
+            font: "system-ui, sans-serif",
+          });
+        });
+
+        // ---- v0.7: 頂点ヘルパー ----
+
+        draw.text("v0.7: 頂点ヘルパー + draw.polygon()", vec2(40, 1210), {
+          size: 24,
+          fill: Palette.White,
+          font: "system-ui, sans-serif",
+        });
+
+        draw.text("star() などは Vec2[] を返すので、そのまま draw.polygon() に渡せます（角度 0 = 真上、時計回り）", vec2(80, 1246), {
+          size: 15,
+          fill: "#ffffff99",
+          font: "system-ui, sans-serif",
+        });
+
+        draw.polygon(star(vec2(110, 1330), 46), {
+          fill: "#ffd166",
+        });
+
+        draw.polygon(nStar(vec2(240, 1330), 8, 46, 24), {
+          fill: "#ff79c6",
+        });
+
+        draw.polygon(hexagon(vec2(370, 1330), 46, time * 0.4), {
+          fill: "#50fa7b",
+        });
+
+        draw.polygon(rhombus(vec2(500, 1330), 80, 96), {
+          fill: "#7aa2ff",
+        });
+
+        draw.polygon(plus(vec2(630, 1330), 46, 28), {
+          fill: Palette.Orange,
+        });
+
+        draw.polygon(cross(vec2(760, 1330), 46, 28), {
+          fill: "#ff5c8a",
+        });
+
+        draw.polygon(astroid(vec2(890, 1330), 48), {
+          fill: "#c3f0ff",
+        });
+
+        // stairs() の base は左下の頂点です。
+        draw.polygon(stairs(vec2(980, 1374), 120, 90, 4), {
+          fill: "#a3be8c",
+        });
+
+        const helperLabels = [
+          ["star", 110],
+          ["nStar(8)", 240],
+          ["hexagon", 370],
+          ["rhombus", 500],
+          ["plus", 630],
+          ["cross", 760],
+          ["astroid", 890],
+          ["stairs", 1040],
+        ];
+        helperLabels.forEach(([text, x]) => {
+          draw.text(text, vec2(x, 1408), {
+            size: 13,
+            fill: "#ffffff88",
+            align: "center",
+            font: "system-ui, sans-serif",
+          });
+        });
+
+        // ---- v0.7: heart / squircle / rectBalloon / shadow ----
+
+        draw.text("v0.7: heart / squircle / rectBalloon / shadow", vec2(40, 1460), {
+          size: 24,
+          fill: Palette.White,
+          font: "system-ui, sans-serif",
+        });
+
+        draw.heart(vec2(120, 1560), 46, {
+          fill: verticalGradient("#ff8fab", "#e63965"),
+        });
+
+        draw.squircle(vec2(280, 1560), 46, { exponent: 4 }, {
+          fill: "#7aa2ff",
+        });
+
+        // rectBalloon は target へ向かう尾付きの吹き出しです。
+        draw.rectBalloon(rect(380, 1510, 180, 72), vec2(420, 1640), {
+          fill: "#f6f2e8",
+        });
+        draw.text("balloon", vec2(470, 1546), {
+          size: 16,
+          fill: "#1f2735",
+          align: "center",
+          baseline: "middle",
+          font: "system-ui, sans-serif",
+        });
+        draw.circle(vec2(420, 1640), 5, {
+          fill: Palette.Orange,
+        });
+
+        // draw.shadow() は影だけを描くので、本体は後から重ねます。
+        draw.shadow(rect(660, 1516, 170, 88), {
+          offset: vec2(0, 10),
+          blur: 18,
+          radius: 16,
+        });
+        draw.roundRect(rect(660, 1516, 170, 88), 16, {
+          fill: "#f6f2e8",
+        });
+        draw.text("card", vec2(745, 1560), {
+          size: 20,
+          fill: "#1f2735",
+          align: "center",
+          baseline: "middle",
+          font: "system-ui, sans-serif",
+        });
+
+        draw.shadow(circle(vec2(960, 1560), 44), {
+          offset: vec2(6, 8),
+          blur: 14,
+          color: "rgba(122, 162, 255, 0.6)",
+        });
+        draw.circle(vec2(960, 1560), 44, {
+          fill: Palette.Skyblue,
+        });
+
+        const softLabels = [
+          ["heart", 120],
+          ["squircle", 280],
+          ["rectBalloon", 470],
+          ["shadow + roundRect", 745],
+          ["shadow (circle)", 960],
+        ];
+        softLabels.forEach(([text, x]) => {
+          draw.text(text, vec2(x, 1670), {
+            size: 13,
+            fill: "#ffffff88",
+            align: "center",
+            font: "system-ui, sans-serif",
+          });
+        });
+
+        // ---- v0.6: bezier / spline ----
+
+        draw.text("v0.6: bezier / spline", vec2(40, 1720), {
+          size: 24,
+          fill: Palette.White,
+          font: "system-ui, sans-serif",
+        });
+
+        // 2次ベジェ: 制御点も一緒に可視化します。
+        const q = bezier2(vec2(80, 1860), vec2(180, 1750), vec2(280, 1860));
+        draw.bezier(q, {
+          stroke: Palette.Skyblue,
+          width: 4,
+          lineCap: "round",
+        });
+        [q.p0, q.p1, q.p2].forEach((p) => {
+          draw.circle(p, 4, { fill: "#ffffff88" });
+        });
+
+        // 3次ベジェ。
+        const c3 = bezier3(vec2(330, 1860), vec2(400, 1740), vec2(470, 1930), vec2(540, 1800));
+        draw.bezier(c3, {
+          stroke: Palette.Orange,
+          width: 4,
+          lineCap: "round",
+        });
+        [c3.p0, c3.p1, c3.p2, c3.p3].forEach((p) => {
+          draw.circle(p, 4, { fill: "#ffffff88" });
+        });
+
+        // open spline は点列を滑らかに通過する線です。
+        const splinePoints = [
+          vec2(620, 1850),
+          vec2(700, 1770),
+          vec2(780, 1880),
+          vec2(860, 1780),
+          vec2(930, 1860),
+        ];
+        draw.spline(splinePoints, { tension: 0.5 }, {
+          stroke: "#50fa7b",
+          width: 3,
+        });
+        splinePoints.forEach((p) => {
+          draw.circle(p, 4, { fill: "#ffffff66" });
+        });
+
+        // closed spline は閉じたパスになり、塗りも指定できます。
+        draw.spline([
+          vec2(1080, 1770),
+          vec2(1150, 1810),
+          vec2(1130, 1890),
+          vec2(1040, 1900),
+          vec2(1000, 1820),
+        ], { closed: true, tension: 0.6 }, {
+          fill: radialGradient("#ff9ecb", "#b23a67"),
+          stroke: "#ffffff66",
+          width: 2,
+        });
+
+        const curveLabels = [
+          ["bezier2", 180],
+          ["bezier3", 435],
+          ["spline (open)", 775],
+          ["spline (closed)", 1075],
+        ];
+        curveLabels.forEach(([text, x]) => {
+          draw.text(text, vec2(x, 1950), {
+            size: 13,
+            fill: "#ffffff88",
+            align: "center",
+            font: "system-ui, sans-serif",
+          });
         });
       }, {
         autoStart: true,
